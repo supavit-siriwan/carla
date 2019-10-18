@@ -481,6 +481,7 @@ float AWheeledVehicleAIController::CalcStreeringValue(FVector &direction)
   return steering;
 }
 
+// Speed in km/h.
 float AWheeledVehicleAIController::Stop(const float Speed)
 {
   return (Speed >= 1.0f ? -Speed / SpeedLimit : 0.0f);
@@ -492,7 +493,7 @@ float AWheeledVehicleAIController::Move(const float Speed)
   {
     return Stop(Speed);
   }
-  else if (Speed >= SpeedLimit - 10.0f)
+  else if (Speed >= TargetSpeed(Speed))
   {
     return 0.5f;
   }
@@ -500,4 +501,22 @@ float AWheeledVehicleAIController::Move(const float Speed)
   {
     return 1.0f;
   }
+}
+
+static float RandomFloat(float a, float b)
+{
+  float random = ((float) rand()) / (float) RAND_MAX;
+  float diff = b - a;
+  float r = random * diff;
+  
+  return a + r;
+}
+
+float AWheeledVehicleAIController::TargetSpeed(const float Speed)
+{
+  static float target_speed = 0.0f;
+
+  target_speed = (SpeedLimit * RandomFloat(0.5f, 1.0f));
+
+  return target_speed;
 }

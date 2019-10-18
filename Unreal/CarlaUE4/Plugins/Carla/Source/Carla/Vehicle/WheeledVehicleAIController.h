@@ -226,6 +226,9 @@ private:
   /// Returns throttle value.
   float Move(float Speed);
 
+  /// Returns TargetSpeed speed.
+  float TargetSpeed(float Speed);
+
   /// @}
   // ===========================================================================
   // -- Member variables -------------------------------------------------------
@@ -250,7 +253,8 @@ private:
   bool bControlIsSticky = true;
 
   UPROPERTY(VisibleAnywhere)
-  float SpeedLimit = 30.0f;
+  //float SpeedLimit = 30.0f; /* Default = 30 km/h */
+  float SpeedLimit = 90.0f; /* For Overtaking map */
 
   UPROPERTY(VisibleAnywhere)
   ETrafficLightState TrafficLightState = ETrafficLightState::Green;

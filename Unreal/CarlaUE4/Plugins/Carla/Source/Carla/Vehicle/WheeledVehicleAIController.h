@@ -226,8 +226,7 @@ private:
   /// Returns throttle value.
   float Move(float Speed);
 
-  /// Returns TargetSpeed speed.
-  float TargetSpeed(float Speed);
+  void setTargetSpeed(void);
 
   /// @}
   // ===========================================================================
@@ -254,7 +253,8 @@ private:
 
   UPROPERTY(VisibleAnywhere)
   //float SpeedLimit = 30.0f; /* Default = 30 km/h */
-  float SpeedLimit = 90.0f; /* For Overtaking map */
+  float SpeedLimit = 60.0f; /* For Overtaking map */
+  float TargetSpeed = 80.0f;
 
   UPROPERTY(VisibleAnywhere)
   ETrafficLightState TrafficLightState = ETrafficLightState::Green;

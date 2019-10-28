@@ -493,7 +493,7 @@ float AWheeledVehicleAIController::Move(const float Speed)
   {
     return Stop(Speed);
   }
-  else if (Speed >= TargetSpeed(Speed))
+  else if (Speed >= TargetSpeed)
   {
     return 0.5f;
   }
@@ -509,14 +509,10 @@ static float RandomFloat(float a, float b)
   float diff = b - a;
   float r = random * diff;
   
-  return a + r;
+  return (a + r);
 }
 
-float AWheeledVehicleAIController::TargetSpeed(const float Speed)
+void AWheeledVehicleAIController::setTargetSpeed(void)
 {
-  static float target_speed = 0.0f;
-
-  target_speed = (SpeedLimit * RandomFloat(0.5f, 1.0f));
-
-  return target_speed;
+  TargetSpeed = RandomFloat(60.0f, 90.0f);
 }

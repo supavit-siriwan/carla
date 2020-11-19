@@ -11,11 +11,18 @@
 #include "Carla/Game/CarlaGameInstance.h"
 #include "Carla/Recorder/CarlaRecorder.h"
 #include "Carla/Game/TaggerDelegate.h"
+#include "Carla/OpenDrive/OpenDrive.h"
+#include "Carla/Sensor/SceneCaptureSensor.h"
 #include "Carla/Settings/CarlaSettingsDelegate.h"
 #include "Carla/Weather/Weather.h"
+#include "Carla/Traffic/TrafficLightManager.h"
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+
+#include <compiler/disable-ue4-macros.h>
+#include <boost/optional.hpp>
+#include <compiler/enable-ue4-macros.h>
 
 #include "CarlaGameModeBase.generated.h"
 
@@ -35,6 +42,19 @@ public:
     return *Episode;
   }
 
+  const boost::optional<carla::road::Map>& GetMap() const {
+    return Map;
+  }
+
+  UFUNCTION(Exec, Category = "CARLA Game Mode")
+  void DebugShowSignals(bool enable);
+
+  UFUNCTION(BlueprintCallable, Category = "CARLA Game Mode")
+  ATrafficLightManager* GetTrafficLightManager();
+
+  UFUNCTION(Category = "Carla Game Mode", BlueprintCallable, CallInEditor, Exec)
+  TArray<FBoundingBox> GetAllBBsOfLevel(uint8 TagQueried = 0);
+
 protected:
 
   void InitGame(const FString &MapName, const FString &Options, FString &ErrorMessage) override;
@@ -51,6 +71,8 @@ private:
 
   void SpawnActorFactories();
 
+  void ParseOpenDrive(const FString &MapName);
+
   UPROPERTY()
   UCarlaGameInstance *GameInstance = nullptr;
 
@@ -64,7 +86,7 @@ private:
   UCarlaEpisode *Episode = nullptr;
 
   UPROPERTY()
-  ACarlaRecorder *Recorder = nullptr;
+  ACarlaRecorder *Recorder = nullptr; 
 
   /// The class of Weather to spawn.
   UPROPERTY(Category = "CARLA Game Mode", EditAnywhere)
@@ -77,4 +99,10 @@ private:
 
   UPROPERTY()
   TArray<ACarlaActorFactory *> ActorFactoryInstances;
+
+  UPROPERTY()
+  ATrafficLightManager* TrafficLightManager = nullptr;
+
+  boost::optional<carla::road::Map> Map;
+
 };

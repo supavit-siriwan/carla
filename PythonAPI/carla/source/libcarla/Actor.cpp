@@ -10,11 +10,14 @@
 #include <carla/client/Walker.h>
 #include <carla/client/WalkerAIController.h>
 #include <carla/rpc/TrafficLightState.h>
+#include <carla/trafficmanager/TrafficManager.h>
 
 #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 
 #include <ostream>
 #include <iostream>
+
+namespace ctm = carla::traffic_manager;
 
 namespace carla {
 namespace client {
@@ -32,6 +35,16 @@ static auto GetSemanticTags(const carla::client::Actor &self) {
   boost::python::object get_iter = boost::python::iterator<std::vector<int>>();
   boost::python::object iter = get_iter(tags);
   return boost::python::list(iter);
+}
+
+static void AddActorImpulse(carla::client::Actor &self,
+    const carla::geom::Vector3D &impulse) {
+  self.AddImpulse(impulse);
+}
+
+static void AddActorForce(carla::client::Actor &self,
+    const carla::geom::Vector3D &force) {
+  self.AddForce(force);
 }
 
 static auto GetGroupTrafficLights(carla::client::TrafficLight &self) {
@@ -53,6 +66,7 @@ void export_actor() {
   using namespace boost::python;
   namespace cc = carla::client;
   namespace cr = carla::rpc;
+  namespace ctm = carla::traffic_manager;
 
   class_<std::vector<int>>("vector_of_ints")
       .def(vector_indexing_suite<std::vector<int>>())
@@ -81,12 +95,34 @@ void export_actor() {
       .def("get_acceleration", &cc::Actor::GetAcceleration)
       .def("set_location", &cc::Actor::SetLocation, (arg("location")))
       .def("set_transform", &cc::Actor::SetTransform, (arg("transform")))
-      .def("set_velocity", &cc::Actor::SetVelocity, (arg("vector")))
-      .def("set_angular_velocity", &cc::Actor::SetAngularVelocity, (arg("vector")))
-      .def("add_impulse", &cc::Actor::AddImpulse, (arg("vector")))
+      .def("set_target_velocity", &cc::Actor::SetTargetVelocity, (arg("velocity")))
+      .def("set_target_angular_velocity", &cc::Actor::SetTargetAngularVelocity, (arg("angular_velocity")))
+      .def("enable_constant_velocity", &cc::Actor::EnableConstantVelocity, (arg("velocity")))
+      .def("disable_constant_velocity", &cc::Actor::DisableConstantVelocity)
+      .def("add_impulse", &AddActorImpulse, (arg("impulse")))
+      .def("add_force", &AddActorForce, (arg("force")))
+      .def("add_angular_impulse", &cc::Actor::AddAngularImpulse, (arg("angular_impulse")))
+      .def("add_torque", &cc::Actor::AddTorque, (arg("torque")))
       .def("set_simulate_physics", &cc::Actor::SetSimulatePhysics, (arg("enabled") = true))
+      .def("set_enable_gravity", &cc::Actor::SetEnableGravity, (arg("enabled") = true))
       .def("destroy", CALL_WITHOUT_GIL(cc::Actor, Destroy))
       .def(self_ns::str(self_ns::self))
+  ;
+
+  enum_<cr::VehicleLightState::LightState>("VehicleLightState")
+    .value("NONE", cr::VehicleLightState::LightState::None) // None is reserved in Python3
+    .value("Position", cr::VehicleLightState::LightState::Position)
+    .value("LowBeam", cr::VehicleLightState::LightState::LowBeam)
+    .value("HighBeam", cr::VehicleLightState::LightState::HighBeam)
+    .value("Brake", cr::VehicleLightState::LightState::Brake)
+    .value("RightBlinker", cr::VehicleLightState::LightState::RightBlinker)
+    .value("LeftBlinker", cr::VehicleLightState::LightState::LeftBlinker)
+    .value("Reverse", cr::VehicleLightState::LightState::Reverse)
+    .value("Fog", cr::VehicleLightState::LightState::Fog)
+    .value("Interior", cr::VehicleLightState::LightState::Interior)
+    .value("Special1", cr::VehicleLightState::LightState::Special1)
+    .value("Special2", cr::VehicleLightState::LightState::Special2)
+    .value("All", cr::VehicleLightState::LightState::All)
   ;
 
   class_<cc::Vehicle, bases<cc::Actor>, boost::noncopyable, boost::shared_ptr<cc::Vehicle>>("Vehicle",
@@ -94,9 +130,11 @@ void export_actor() {
       .add_property("bounding_box", CALL_RETURNING_COPY(cc::Vehicle, GetBoundingBox))
       .def("apply_control", &cc::Vehicle::ApplyControl, (arg("control")))
       .def("get_control", &cc::Vehicle::GetControl)
+      .def("set_light_state", &cc::Vehicle::SetLightState, (arg("light_state")))
+      .def("get_light_state", CONST_CALL_WITHOUT_GIL(cc::Vehicle, GetLightState))
       .def("apply_physics_control", &cc::Vehicle::ApplyPhysicsControl, (arg("physics_control")))
       .def("get_physics_control", CONST_CALL_WITHOUT_GIL(cc::Vehicle, GetPhysicsControl))
-      .def("set_autopilot", &cc::Vehicle::SetAutopilot, (arg("enabled") = true))
+      .def("set_autopilot", CALL_WITHOUT_GIL_2(cc::Vehicle, SetAutopilot, bool, uint16_t), (arg("enabled") = true, arg("tm_port") = ctm::TM_DEFAULT_PORT))
       .def("get_speed_limit", &cc::Vehicle::GetSpeedLimit)
       .def("get_traffic_light_state", &cc::Vehicle::GetTrafficLightState)
       .def("is_at_traffic_light", &cc::Vehicle::IsAtTrafficLight)
@@ -151,6 +189,7 @@ void export_actor() {
       .def("is_frozen", &cc::TrafficLight::IsFrozen)
       .def("get_pole_index", &cc::TrafficLight::GetPoleIndex)
       .def("get_group_traffic_lights", &GetGroupTrafficLights)
+      .def("reset_group", &cc::TrafficLight::ResetGroup)
       .def(self_ns::str(self_ns::self))
   ;
 }

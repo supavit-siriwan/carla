@@ -16,6 +16,7 @@
 #include "carla/client/TimeoutException.h"
 #include "carla/client/WalkerAIController.h"
 #include "carla/client/detail/ActorFactory.h"
+#include "carla/trafficmanager/TrafficManager.h"
 #include "carla/sensor/Deserializer.h"
 
 #include <exception>
@@ -43,10 +44,23 @@ namespace detail {
     }
   }
 
-  static void SynchronizeFrame(uint64_t frame, const Episode &episode) {
+  static bool SynchronizeFrame(uint64_t frame, const Episode &episode, time_duration timeout) {
+    bool result = true;
+    auto start = std::chrono::system_clock::now();
     while (frame > episode.GetState()->GetTimestamp().frame) {
       std::this_thread::yield();
+      auto end = std::chrono::system_clock::now();
+      auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(end-start);
+      if(timeout.to_chrono() < diff) {
+        result = false;
+        break;
+      }
     }
+    if(result) {
+      carla::traffic_manager::TrafficManager::Tick();
+    }
+
+    return result;
   }
 
   // ===========================================================================
@@ -60,6 +74,7 @@ namespace detail {
       const bool enable_garbage_collection)
     : LIBCARLA_INITIALIZE_LIFETIME_PROFILER("SimulatorClient("s + host + ":" + std::to_string(port) + ")"),
       _client(host, port, worker_threads),
+      _light_manager(new LightManager()),
       _gc_policy(enable_garbage_collection ?
         GarbageCollectionPolicy::Enabled : GarbageCollectionPolicy::Disabled) {}
 
@@ -82,6 +97,17 @@ namespace detail {
     throw_exception(std::runtime_error("failed to connect to newly created map"));
   }
 
+  EpisodeProxy Simulator::LoadOpenDriveEpisode(
+      std::string opendrive,
+      const rpc::OpendriveGenerationParameters & params) {
+    // The "OpenDriveMap" is an ".umap" located in:
+    // "carla/Unreal/CarlaUE4/Content/Carla/Maps/"
+    // It will load the last sended OpenDRIVE by client's "LoadOpenDriveEpisode()"
+    constexpr auto custom_opendrive_map = "OpenDriveMap";
+    _client.CopyOpenDriveToServer(std::move(opendrive), params);
+    return LoadEpisode(custom_opendrive_map);
+  }
+
   // ===========================================================================
   // -- Access to current episode ----------------------------------------------
   // ===========================================================================
@@ -94,6 +120,7 @@ namespace detail {
       if (!GetEpisodeSettings().synchronous_mode) {
         WaitForTick(_client.GetTimeout());
       }
+      _light_manager->SetEpisode(EpisodeProxy{shared_from_this()});
     }
     return EpisodeProxy{shared_from_this()};
   }
@@ -115,11 +142,13 @@ namespace detail {
     return *result;
   }
 
-  uint64_t Simulator::Tick() {
+  uint64_t Simulator::Tick(time_duration timeout) {
     DEBUG_ASSERT(_episode != nullptr);
     const auto frame = _client.SendTickCue();
-    SynchronizeFrame(frame, *_episode);
-    RELEASE_ASSERT(frame == _episode->GetState()->GetTimestamp().frame);
+    bool result = SynchronizeFrame(frame, *_episode, timeout);
+    if (!result) {
+      throw_exception(TimeoutException(_client.GetEndpoint(), timeout));
+    }
     return frame;
   }
 
@@ -130,6 +159,10 @@ namespace detail {
   SharedPtr<BlueprintLibrary> Simulator::GetBlueprintLibrary() {
     auto defs = _client.GetActorDefinitions();
     return MakeShared<BlueprintLibrary>(std::move(defs));
+  }
+
+  rpc::VehicleLightStateList Simulator::GetVehiclesLightStates() {
+    return _client.GetVehiclesLightStates();
   }
 
   SharedPtr<Actor> Simulator::GetSpectator() {
@@ -143,7 +176,8 @@ namespace detail {
           "recommended to set 'fixed_delta_seconds' when running on synchronous mode.");
     }
     const auto frame = _client.SetEpisodeSettings(settings);
-    SynchronizeFrame(frame, *_episode);
+    using namespace std::literals::chrono_literals;
+    SynchronizeFrame(frame, *_episode, 10s);
     return frame;
   }
 
@@ -180,6 +214,13 @@ namespace detail {
     auto navigation = _episode->CreateNavigationIfMissing();
     DEBUG_ASSERT(navigation != nullptr);
     return navigation->GetRandomLocation();
+  }
+
+  void Simulator::SetPedestriansCrossFactor(float percentage) {
+    DEBUG_ASSERT(_episode != nullptr);
+    auto navigation = _episode->CreateNavigationIfMissing();
+    DEBUG_ASSERT(navigation != nullptr);
+    navigation->SetPedestriansCrossFactor(percentage);
   }
 
   // ===========================================================================
@@ -248,6 +289,10 @@ namespace detail {
 
   void Simulator::UnSubscribeFromSensor(const Sensor &sensor) {
     _client.UnSubscribeFromStream(sensor.GetActorDescription().GetStreamToken());
+  }
+
+  void Simulator::FreezeAllTrafficLights(bool frozen) {
+    _client.FreezeAllTrafficLights(frozen);
   }
 
 } // namespace detail

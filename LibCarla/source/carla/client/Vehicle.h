@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma
+// Copyright (c) 2019 Computer Vision Center (CVC) at the Universitat Autonoma
 // de Barcelona (UAB).
 //
 // This work is licensed under the terms of the MIT license.
@@ -7,12 +7,22 @@
 #pragma once
 
 #include "carla/client/Actor.h"
+#include "carla/rpc/TrafficLightState.h"
+#include "carla/rpc/VehicleLightState.h"
 #include "carla/rpc/VehicleControl.h"
 #include "carla/rpc/VehiclePhysicsControl.h"
-#include "carla/rpc/TrafficLightState.h"
+#include "carla/trafficmanager/TrafficManager.h"
+
+using carla::traffic_manager::constants::Networking::TM_DEFAULT_PORT;
 
 namespace carla {
+
+namespace traffic_manager {
+  class TrafficManager;
+}
+
 namespace client {
+
   class TrafficLight;
 
   class Vehicle : public Actor {
@@ -20,19 +30,24 @@ namespace client {
 
     using Control = rpc::VehicleControl;
     using PhysicsControl = rpc::VehiclePhysicsControl;
+    using LightState = rpc::VehicleLightState::LightState;
+    using TM = traffic_manager::TrafficManager;
 
     explicit Vehicle(ActorInitializer init);
 
     using ActorState::GetBoundingBox;
 
     /// Switch on/off this vehicle's autopilot.
-    void SetAutopilot(bool enabled = true);
+    void SetAutopilot(bool enabled = true, uint16_t tm_port = TM_DEFAULT_PORT);
 
     /// Apply @a control to this vehicle.
     void ApplyControl(const Control &control);
 
     /// Apply physics control to this vehicle.
     void ApplyPhysicsControl(const PhysicsControl &physics_control);
+
+    /// Sets a @a LightState to this vehicle.
+    void SetLightState(const LightState &light_state);
 
     /// Return the control last applied to this vehicle.
     ///
@@ -44,6 +59,12 @@ namespace client {
     ///
     /// @warning This function does call the simulator.
     PhysicsControl GetPhysicsControl() const;
+
+    /// Return the current open lights (LightState) of this vehicle.
+    ///
+    /// @note This function does not call the simulator, it returns the data
+    /// received in the last tick.
+    LightState GetLightState() const;
 
     /// Return the speed limit currently affecting this vehicle.
     ///

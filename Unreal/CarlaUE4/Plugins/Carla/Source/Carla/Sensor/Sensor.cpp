@@ -17,7 +17,6 @@ ASensor::ASensor(const FObjectInitializer &ObjectInitializer)
   Mesh->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
   Mesh->bHiddenInGame = true;
   Mesh->CastShadow = false;
-  Mesh->PostPhysicsComponentTick.bCanEverTick = false;
   RootComponent = Mesh;
 }
 
@@ -30,6 +29,13 @@ void ASensor::Set(const FActorDescription &Description)
         UActorBlueprintFunctionLibrary::ActorAttributeToFloat(Description.Variations["sensor_tick"],
         0.0f));
   }
+}
+
+void ASensor::SetSeed(const int32 InSeed)
+{
+  check(RandomEngine != nullptr);
+  Seed = InSeed;
+  RandomEngine->Seed(InSeed);
 }
 
 void ASensor::PostActorCreated()

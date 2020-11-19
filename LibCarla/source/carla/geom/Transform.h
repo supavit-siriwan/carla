@@ -53,31 +53,77 @@ namespace geom {
       return rotation.GetForwardVector();
     }
 
+    Vector3D GetRightVector() const {
+      return rotation.GetRightVector();
+    }
+
+    Vector3D GetUpVector() const {
+      return rotation.GetUpVector();
+    }
+
+    /// Applies this transformation to @a in_point (first translation then rotation).
     void TransformPoint(Vector3D &in_point) const {
-      // Rotate
-      const float cy = std::cos(Math::ToRadians(rotation.yaw));
-      const float sy = std::sin(Math::ToRadians(rotation.yaw));
-      const float cr = std::cos(Math::ToRadians(rotation.roll));
-      const float sr = std::sin(Math::ToRadians(rotation.roll));
-      const float cp = std::cos(Math::ToRadians(rotation.pitch));
-      const float sp = std::sin(Math::ToRadians(rotation.pitch));
-
-      Vector3D out_point;
-      out_point.x = in_point.x * (cp * cy) +
-          in_point.y * (cy * sp * sr - sy * cr) +
-          in_point.z * (-cy * sp * cr - sy * sr);
-      out_point.y = in_point.x * (cp * sy) +
-          in_point.y * (sy * sp * sr + cy * cr) +
-          in_point.z * (-sy * sp * cr + cy * sr);
-
-      out_point.z = in_point.x *  (sp) +
-          in_point.y * -(cp * sr) +
-          in_point.z *  (cp * cr);
-
-      // Translate
-      out_point += location;
-
+      auto out_point = in_point;
+      rotation.RotateVector(out_point); // First rotate
+      out_point += location;            // Then translate
       in_point = out_point;
+    }
+
+    /// Applies the inverse of this transformation to @a in_point
+    void InverseTransformPoint(Vector3D &in_point) const {
+      auto out_point = in_point;
+      out_point -= location;                   // First translate inverse
+      rotation.InverseRotateVector(out_point); // Then rotate inverse
+      in_point = out_point;
+    }
+
+    /// Computes the 4-matrix form of the transformation
+    std::array<float, 16> GetMatrix() const {
+      const float yaw = rotation.yaw;
+      const float cy = std::cos(Math::ToRadians(yaw));
+      const float sy = std::sin(Math::ToRadians(yaw));
+
+      const float roll = rotation.roll;
+      const float cr = std::cos(Math::ToRadians(roll));
+      const float sr = std::sin(Math::ToRadians(roll));
+
+      const float pitch = rotation.pitch;
+      const float cp = std::cos(Math::ToRadians(pitch));
+      const float sp = std::sin(Math::ToRadians(pitch));
+
+      std::array<float, 16> transform = {
+          cp * cy, cy * sp * sr - sy * cr, -cy * sp * cr - sy * sr, location.x,
+          cp * sy, sy * sp * sr + cy * cr, -sy * sp * cr + cy * sr, location.y,
+          sp, -cp * sr, cp * cr, location.z,
+          0.0, 0.0, 0.0, 1.0};
+
+      return transform;
+    }
+
+    /// Computes the 4-matrix form of the inverse transformation
+    std::array<float, 16> GetInverseMatrix() const {
+      const float yaw = rotation.yaw;
+      const float cy = std::cos(Math::ToRadians(yaw));
+      const float sy = std::sin(Math::ToRadians(yaw));
+
+      const float roll = rotation.roll;
+      const float cr = std::cos(Math::ToRadians(roll));
+      const float sr = std::sin(Math::ToRadians(roll));
+
+      const float pitch = rotation.pitch;
+      const float cp = std::cos(Math::ToRadians(pitch));
+      const float sp = std::sin(Math::ToRadians(pitch));
+
+      Vector3D a = {0.0f, 0.0f, 0.0f};
+      InverseTransformPoint(a);
+
+      std::array<float, 16> transform = {
+          cp * cy, cp * sy, sp, a.x,
+          cy * sp * sr - sy * cr, sy * sp * sr + cy * cr, -cp * sr, a.y,
+          -cy * sp * cr - sy * sr, -sy * sp * cr + cy * sr, cp * cr, a.z,
+          0.0f, 0.0f, 0.0f, 1.0};
+
+      return transform;
     }
 
     // =========================================================================

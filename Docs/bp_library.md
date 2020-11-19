@@ -1,5 +1,5 @@
 
-<h1>Blueprint Library</h1>
+#Blueprint Library
 The Blueprint Library ([`carla.BlueprintLibrary`](../python_api/#carlablueprintlibrary-class)) is a summary of all [`carla.ActorBlueprint`](../python_api/#carla.ActorBlueprint) and its attributes ([`carla.ActorAttribute`](../python_api/#carla.ActorAttribute)) available to the user in CARLA.  
 
 Here is an example code for printing all actor blueprints and their attributes:  
@@ -11,7 +11,7 @@ for blueprint in blueprints:
        print('  - {}'.format(attr))
 ```
   
-Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).  
+Check out the [introduction to blueprints](core_actors.md).  
 
 ### controller
 - **<font color="#498efc">controller.ai.walker</font>**  
@@ -32,10 +32,11 @@ Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).
         - `lens_y_size` (_Float_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
         - `sensor_tick` (_Float_)<sub>_ – Modifiable_</sub>
-- **<font color="#498efc">sensor.camera.rgb</font>**  
+- **<font color="#498efc">sensor.camera.dvs</font>**  
     - **Attributes:**
         - `black_clip` (_Float_)<sub>_ – Modifiable_</sub>
         - `blade_count` (_Int_)<sub>_ – Modifiable_</sub>
+        - `bloom_intensity` (_Float_)<sub>_ – Modifiable_</sub>
         - `blur_amount` (_Float_)<sub>_ – Modifiable_</sub>
         - `blur_radius` (_Float_)<sub>_ – Modifiable_</sub>
         - `calibration_constant` (_Float_)<sub>_ – Modifiable_</sub>
@@ -57,6 +58,58 @@ Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).
         - `iso` (_Float_)<sub>_ – Modifiable_</sub>
         - `lens_circle_falloff` (_Float_)<sub>_ – Modifiable_</sub>
         - `lens_circle_multiplier` (_Float_)<sub>_ – Modifiable_</sub>
+        - `lens_flare_intensity` (_Float_)<sub>_ – Modifiable_</sub>
+        - `lens_k` (_Float_)<sub>_ – Modifiable_</sub>
+        - `lens_kcube` (_Float_)<sub>_ – Modifiable_</sub>
+        - `lens_x_size` (_Float_)<sub>_ – Modifiable_</sub>
+        - `lens_y_size` (_Float_)<sub>_ – Modifiable_</sub>
+        - `log_eps` (_Float_)<sub>_ – Modifiable_</sub>
+        - `min_fstop` (_Float_)<sub>_ – Modifiable_</sub>
+        - `motion_blur_intensity` (_Float_)<sub>_ – Modifiable_</sub>
+        - `motion_blur_max_distortion` (_Float_)<sub>_ – Modifiable_</sub>
+        - `motion_blur_min_object_screen_size` (_Float_)<sub>_ – Modifiable_</sub>
+        - `negative_threshold` (_Float_)<sub>_ – Modifiable_</sub>
+        - `positive_threshold` (_Float_)<sub>_ – Modifiable_</sub>
+        - `refractory_period_ns` (_Int_)<sub>_ – Modifiable_</sub>
+        - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `sensor_tick` (_Float_)<sub>_ – Modifiable_</sub>
+        - `shoulder` (_Float_)<sub>_ – Modifiable_</sub>
+        - `shutter_speed` (_Float_)<sub>_ – Modifiable_</sub>
+        - `sigma_negative_threshold` (_Float_)<sub>_ – Modifiable_</sub>
+        - `sigma_positive_threshold` (_Float_)<sub>_ – Modifiable_</sub>
+        - `slope` (_Float_)<sub>_ – Modifiable_</sub>
+        - `temp` (_Float_)<sub>_ – Modifiable_</sub>
+        - `tint` (_Float_)<sub>_ – Modifiable_</sub>
+        - `toe` (_Float_)<sub>_ – Modifiable_</sub>
+        - `use_log` (_Bool_)<sub>_ – Modifiable_</sub>
+        - `white_clip` (_Float_)<sub>_ – Modifiable_</sub>
+- **<font color="#498efc">sensor.camera.rgb</font>**  
+    - **Attributes:**
+        - `black_clip` (_Float_)<sub>_ – Modifiable_</sub>
+        - `blade_count` (_Int_)<sub>_ – Modifiable_</sub>
+        - `bloom_intensity` (_Float_)<sub>_ – Modifiable_</sub>
+        - `blur_amount` (_Float_)<sub>_ – Modifiable_</sub>
+        - `blur_radius` (_Float_)<sub>_ – Modifiable_</sub>
+        - `calibration_constant` (_Float_)<sub>_ – Modifiable_</sub>
+        - `chromatic_aberration_intensity` (_Float_)<sub>_ – Modifiable_</sub>
+        - `chromatic_aberration_offset` (_Float_)<sub>_ – Modifiable_</sub>
+        - `enable_postprocess_effects` (_Bool_)<sub>_ – Modifiable_</sub>
+        - `exposure_compensation` (_Float_)<sub>_ – Modifiable_</sub>
+        - `exposure_max_bright` (_Float_)<sub>_ – Modifiable_</sub>
+        - `exposure_min_bright` (_Float_)<sub>_ – Modifiable_</sub>
+        - `exposure_mode` (_String_)<sub>_ – Modifiable_</sub>
+        - `exposure_speed_down` (_Float_)<sub>_ – Modifiable_</sub>
+        - `exposure_speed_up` (_Float_)<sub>_ – Modifiable_</sub>
+        - `focal_distance` (_Float_)<sub>_ – Modifiable_</sub>
+        - `fov` (_Float_)<sub>_ – Modifiable_</sub>
+        - `fstop` (_Float_)<sub>_ – Modifiable_</sub>
+        - `gamma` (_Float_)<sub>_ – Modifiable_</sub>
+        - `image_size_x` (_Int_)<sub>_ – Modifiable_</sub>
+        - `image_size_y` (_Int_)<sub>_ – Modifiable_</sub>
+        - `iso` (_Float_)<sub>_ – Modifiable_</sub>
+        - `lens_circle_falloff` (_Float_)<sub>_ – Modifiable_</sub>
+        - `lens_circle_multiplier` (_Float_)<sub>_ – Modifiable_</sub>
+        - `lens_flare_intensity` (_Float_)<sub>_ – Modifiable_</sub>
         - `lens_k` (_Float_)<sub>_ – Modifiable_</sub>
         - `lens_kcube` (_Float_)<sub>_ – Modifiable_</sub>
         - `lens_x_size` (_Float_)<sub>_ – Modifiable_</sub>
@@ -89,6 +142,21 @@ Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).
         - `sensor_tick` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">sensor.lidar.ray_cast</font>**  
     - **Attributes:**
+        - `atmosphere_attenuation_rate` (_Float_)<sub>_ – Modifiable_</sub>
+        - `channels` (_Int_)<sub>_ – Modifiable_</sub>
+        - `dropoff_general_rate` (_Float_)<sub>_ – Modifiable_</sub>
+        - `dropoff_intensity_limit` (_Float_)<sub>_ – Modifiable_</sub>
+        - `dropoff_zero_intensity` (_Float_)<sub>_ – Modifiable_</sub>
+        - `lower_fov` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_stddev` (_Float_)<sub>_ – Modifiable_</sub>
+        - `points_per_second` (_Int_)<sub>_ – Modifiable_</sub>
+        - `range` (_Float_)<sub>_ – Modifiable_</sub>
+        - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `rotation_frequency` (_Float_)<sub>_ – Modifiable_</sub>
+        - `sensor_tick` (_Float_)<sub>_ – Modifiable_</sub>
+        - `upper_fov` (_Float_)<sub>_ – Modifiable_</sub>
+- **<font color="#498efc">sensor.lidar.ray_cast_semantic</font>**  
+    - **Attributes:**
         - `channels` (_Int_)<sub>_ – Modifiable_</sub>
         - `lower_fov` (_Float_)<sub>_ – Modifiable_</sub>
         - `points_per_second` (_Int_)<sub>_ – Modifiable_</sub>
@@ -102,7 +170,29 @@ Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">sensor.other.gnss</font>**  
     - **Attributes:**
+        - `noise_alt_bias` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_alt_stddev` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_lat_bias` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_lat_stddev` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_lon_bias` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_lon_stddev` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_seed` (_Int_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `sensor_tick` (_Float_)<sub>_ – Modifiable_</sub>
+- **<font color="#498efc">sensor.other.imu</font>**  
+    - **Attributes:**
+        - `noise_accel_stddev_x` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_accel_stddev_y` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_accel_stddev_z` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_gyro_bias_x` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_gyro_bias_y` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_gyro_bias_z` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_gyro_stddev_x` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_gyro_stddev_y` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_gyro_stddev_z` (_Float_)<sub>_ – Modifiable_</sub>
+        - `noise_seed` (_Int_)<sub>_ – Modifiable_</sub>
+        - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `sensor_tick` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">sensor.other.lane_invasion</font>**  
     - **Attributes:**
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
@@ -114,6 +204,17 @@ Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).
         - `only_dynamics` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
         - `sensor_tick` (_Float_)<sub>_ – Modifiable_</sub>
+- **<font color="#498efc">sensor.other.radar</font>**  
+    - **Attributes:**
+        - `horizontal_fov` (_Float_)<sub>_ – Modifiable_</sub>
+        - `points_per_second` (_Int_)<sub>_ – Modifiable_</sub>
+        - `range` (_Float_)<sub>_ – Modifiable_</sub>
+        - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `sensor_tick` (_Float_)<sub>_ – Modifiable_</sub>
+        - `vertical_fov` (_Float_)<sub>_ – Modifiable_</sub>
+- **<font color="#498efc">sensor.other.rss</font>**  
+    - **Attributes:**
+        - `role_name` (_String_)<sub>_ – Modifiable_</sub>
 
 ### static
 - **<font color="#498efc">static.prop.advertisement</font>**  
@@ -564,13 +665,6 @@ Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).
         - `object_type` (_String_)
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
         - `sticky_control` (_Bool_)<sub>_ – Modifiable_</sub>
-- **<font color="#498efc">vehicle.ford.mustang</font>**  
-    - **Attributes:**
-        - `color` (_RGBColor_)<sub>_ – Modifiable_</sub>
-        - `number_of_wheels` (_Int_)
-        - `object_type` (_String_)
-        - `role_name` (_String_)<sub>_ – Modifiable_</sub>
-        - `sticky_control` (_Bool_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">vehicle.gazelle.omafiets</font>**  
     - **Attributes:**
         - `color` (_RGBColor_)<sub>_ – Modifiable_</sub>
@@ -579,7 +673,7 @@ Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).
         - `object_type` (_String_)
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
         - `sticky_control` (_Bool_)<sub>_ – Modifiable_</sub>
-- **<font color="#498efc">vehicle.harley-davidson.low rider</font>**  
+- **<font color="#498efc">vehicle.harley-davidson.low_rider</font>**  
     - **Attributes:**
         - `color` (_RGBColor_)<sub>_ – Modifiable_</sub>
         - `driver_id` (_Int_)<sub>_ – Modifiable_</sub>
@@ -623,6 +717,13 @@ Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).
         - `object_type` (_String_)
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
         - `sticky_control` (_Bool_)<sub>_ – Modifiable_</sub>
+- **<font color="#498efc">vehicle.mustang.mustang</font>**  
+    - **Attributes:**
+        - `color` (_RGBColor_)<sub>_ – Modifiable_</sub>
+        - `number_of_wheels` (_Int_)
+        - `object_type` (_String_)
+        - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `sticky_control` (_Bool_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">vehicle.nissan.micra</font>**  
     - **Attributes:**
         - `color` (_RGBColor_)<sub>_ – Modifiable_</sub>
@@ -640,6 +741,12 @@ Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).
 - **<font color="#498efc">vehicle.seat.leon</font>**  
     - **Attributes:**
         - `color` (_RGBColor_)<sub>_ – Modifiable_</sub>
+        - `number_of_wheels` (_Int_)
+        - `object_type` (_String_)
+        - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `sticky_control` (_Bool_)<sub>_ – Modifiable_</sub>
+- **<font color="#498efc">vehicle.tesla.cybertruck</font>**  
+    - **Attributes:**
         - `number_of_wheels` (_Int_)
         - `object_type` (_String_)
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
@@ -681,81 +788,102 @@ Check out our [blueprint tutorial](../python_api_tutorial/#blueprints).
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0002</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0003</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0004</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0005</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0006</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0007</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0008</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0009</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0010</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0011</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0012</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0013</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
 - **<font color="#498efc">walker.pedestrian.0014</font>**  
     - **Attributes:**
         - `age` (_String_)
         - `gender` (_String_)
         - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
         - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>
+- **<font color="#498efc">walker.pedestrian.0015</font>**  
+    - **Attributes:**
+        - `age` (_String_)
+        - `gender` (_String_)
+        - `is_invincible` (_Bool_)<sub>_ – Modifiable_</sub>
+        - `role_name` (_String_)<sub>_ – Modifiable_</sub>
+        - `speed` (_Float_)<sub>_ – Modifiable_</sub>

@@ -6,12 +6,15 @@
 
 #pragma once
 
-#include "carla/PythonUtil.h"
-#include "carla/client/World.h"
 #include "carla/client/detail/Simulator.h"
+#include "carla/client/World.h"
+#include "carla/PythonUtil.h"
+#include "carla/trafficmanager/TrafficManager.h"
 
 namespace carla {
 namespace client {
+
+  using namespace carla::traffic_manager;
 
   class Client {
   public:
@@ -31,6 +34,10 @@ namespace client {
     /// operation taking longer than @a timeout throws rpc::timeout.
     void SetTimeout(time_duration timeout) {
       _simulator->SetNetworkingTimeout(timeout);
+    }
+
+    time_duration GetTimeout() {
+      return _simulator->GetNetworkingTimeout();
     }
 
     /// Return the version string of this client API.
@@ -55,13 +62,30 @@ namespace client {
       return World{_simulator->LoadEpisode(std::move(map_name))};
     }
 
+    World GenerateOpenDriveWorld(
+        std::string opendrive,
+        const rpc::OpendriveGenerationParameters & params) const {
+      return World{_simulator->LoadOpenDriveEpisode(
+          std::move(opendrive), params)};
+    }
+
     /// Return an instance of the world currently active in the simulator.
     World GetWorld() const {
       return World{_simulator->GetCurrentEpisode()};
     }
 
-    std::string StartRecorder(std::string name) {
-      return _simulator->StartRecorder(name);
+    /// Return an instance of the TrafficManager currently active in the simulator.
+    TrafficManager GetInstanceTM(uint16_t port = TM_DEFAULT_PORT) const {
+      return TrafficManager(_simulator->GetCurrentEpisode(), port);
+    }
+
+    /// Return an instance of the Episode currently active in the simulator.
+    carla::client::detail::EpisodeProxy GetCurrentEpisode() const {
+      return _simulator->GetCurrentEpisode();
+    }
+
+    std::string StartRecorder(std::string name, bool additional_data = false) {
+      return _simulator->StartRecorder(name, additional_data);
     }
 
     void StopRecorder(void) {
@@ -84,8 +108,16 @@ namespace client {
       return _simulator->ReplayFile(name, start, duration, follow_id);
     }
 
+    void StopReplayer(bool keep_actors) {
+      _simulator->StopReplayer(keep_actors);
+    }
+
     void SetReplayerTimeFactor(double time_factor) {
       _simulator->SetReplayerTimeFactor(time_factor);
+    }
+
+    void SetReplayerIgnoreHero(bool ignore_hero) {
+      _simulator->SetReplayerIgnoreHero(ignore_hero);
     }
 
     void ApplyBatch(
@@ -103,6 +135,7 @@ namespace client {
   private:
 
     std::shared_ptr<detail::Simulator> _simulator;
+
   };
 
   inline Client::Client(

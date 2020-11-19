@@ -7,10 +7,22 @@
 #include "Carla.h"
 #include "Carla/Game/CarlaGameModeBase.h"
 #include "Carla/Game/CarlaHUD.h"
+#include "Engine/DecalActor.h"
 
 #include <compiler/disable-ue4-macros.h>
 #include <carla/rpc/WeatherParameters.h>
+#include "carla/opendrive/OpenDriveParser.h"
+#include "carla/road/element/RoadInfoSignal.h"
 #include <compiler/enable-ue4-macros.h>
+
+#include "Async/ParallelFor.h"
+#include "DynamicRHI.h"
+
+#include "DrawDebugHelpers.h"
+#include "Kismet/KismetSystemLibrary.h"
+
+namespace cr = carla::road;
+namespace cre = carla::road::element;
 
 ACarlaGameModeBase::ACarlaGameModeBase(const FObjectInitializer& ObjectInitializer)
   : Super(ObjectInitializer)
@@ -90,6 +102,8 @@ void ACarlaGameModeBase::InitGame(
   // make connection between Episode and Recorder
   Recorder->SetEpisode(Episode);
   Episode->SetRecorder(Recorder);
+
+  ParseOpenDrive(MapName);
 }
 
 void ACarlaGameModeBase::RestartPlayer(AController *NewPlayer)
@@ -111,6 +125,19 @@ void ACarlaGameModeBase::BeginPlay()
     ATagger::TagActorsInLevel(*GetWorld(), true);
     TaggerDelegate->SetSemanticSegmentationEnabled();
   }
+
+  // HACK: fix transparency see-through issues
+  // The problem: transparent objects are visible through walls.
+  // This is due to a weird interaction between the SkyAtmosphere component,
+  // the shadows of a directional light (the sun)
+  // and the custom depth set to 3 used for semantic segmentation
+  // The solution: Spawn a Decal.
+  // It just works!
+  GetWorld()->SpawnActor<ADecalActor>(
+      FVector(0,0,-1000000), FRotator(0,0,0), FActorSpawnParameters());
+
+  ATrafficLightManager* Manager = GetTrafficLightManager();
+  Manager->InitializeTrafficLights();
 
   Episode->InitializeAtBeginPlay();
   GameInstance->NotifyBeginEpisode(*Episode);
@@ -173,4 +200,148 @@ void ACarlaGameModeBase::SpawnActorFactories()
       }
     }
   }
+}
+
+void ACarlaGameModeBase::ParseOpenDrive(const FString &MapName)
+{
+  std::string opendrive_xml = carla::rpc::FromLongFString(UOpenDrive::LoadXODR(MapName));
+  Map = carla::opendrive::OpenDriveParser::Load(opendrive_xml);
+  if (!Map.has_value()) {
+    UE_LOG(LogCarla, Error, TEXT("Invalid Map"));
+  }
+  else
+  {
+    Episode->MapGeoReference = Map->GetGeoReference();
+  }
+}
+
+ATrafficLightManager* ACarlaGameModeBase::GetTrafficLightManager()
+{
+  if (!TrafficLightManager)
+  {
+    AActor* TrafficLightManagerActor = UGameplayStatics::GetActorOfClass(GetWorld(), ATrafficLightManager::StaticClass());
+    if(TrafficLightManagerActor == nullptr)
+    {
+      TrafficLightManager = GetWorld()->SpawnActor<ATrafficLightManager>();
+    }
+    else
+    {
+      TrafficLightManager = Cast<ATrafficLightManager>(TrafficLightManagerActor);
+    }
+  }
+  return TrafficLightManager;
+}
+
+void ACarlaGameModeBase::DebugShowSignals(bool enable)
+{
+
+  auto World = GetWorld();
+  check(World != nullptr);
+
+  if(!Map)
+  {
+    return;
+  }
+
+  if(!enable)
+  {
+    UKismetSystemLibrary::FlushDebugStrings(World);
+    UKismetSystemLibrary::FlushPersistentDebugLines(World);
+    return;
+  }
+
+  //const std::unordered_map<carla::road::SignId, std::unique_ptr<carla::road::Signal>>
+  const auto& Signals = Map->GetSignals();
+  const auto& Controllers = Map->GetControllers();
+
+  for(const auto& Signal : Signals) {
+    const auto& ODSignal = Signal.second;
+    const FTransform Transform = ODSignal->GetTransform();
+    const FVector Location = Transform.GetLocation();
+    const FQuat Rotation = Transform.GetRotation();
+    const FVector Up = Rotation.GetUpVector();
+    DrawDebugSphere(
+      World,
+      Location,
+      50.0f,
+      10,
+      FColor(0, 255, 0),
+      true
+    );
+  }
+
+  TArray<const cre::RoadInfoSignal*> References;
+  auto waypoints = Map->GenerateWaypointsOnRoadEntries();
+  std::unordered_set<cr::RoadId> ExploredRoads;
+  for (auto & waypoint : waypoints)
+  {
+    // Check if we already explored this road
+    if (ExploredRoads.count(waypoint.road_id) > 0)
+    {
+      continue;
+    }
+    ExploredRoads.insert(waypoint.road_id);
+
+    // Multiple times for same road (performance impact, not in behavior)
+    auto SignalReferences = Map->GetLane(waypoint).
+        GetRoad()->GetInfos<cre::RoadInfoSignal>();
+    for (auto *SignalReference : SignalReferences)
+    {
+      References.Add(SignalReference);
+    }
+  }
+  for (auto& Reference : References)
+  {
+    auto RoadId = Reference->GetRoadId();
+    const auto* SignalReference = Reference;
+    const FTransform SignalTransform = SignalReference->GetSignal()->GetTransform();
+    for(auto &validity : SignalReference->GetValidities())
+    {
+      for(auto lane : carla::geom::Math::GenerateRange(validity._from_lane, validity._to_lane))
+      {
+        if(lane == 0)
+          continue;
+
+        auto signal_waypoint = Map->GetWaypoint(
+            RoadId, lane, SignalReference->GetS()).get();
+
+        if(Map->GetLane(signal_waypoint).GetType() != cr::Lane::LaneType::Driving)
+          continue;
+
+        FTransform ReferenceTransform = Map->ComputeTransform(signal_waypoint);
+
+        DrawDebugSphere(
+            World,
+            ReferenceTransform.GetLocation(),
+            50.0f,
+            10,
+            FColor(0, 0, 255),
+            true
+        );
+
+        DrawDebugLine(
+            World,
+            ReferenceTransform.GetLocation(),
+            SignalTransform.GetLocation(),
+            FColor(0, 0, 255),
+            true
+        );
+      }
+    }
+  }
+
+}
+
+TArray<FBoundingBox> ACarlaGameModeBase::GetAllBBsOfLevel(uint8 TagQueried)
+{
+  UWorld* World = GetWorld();
+
+  // Get all actors of the level
+  TArray<AActor*> FoundActors;
+  UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), FoundActors);
+
+  TArray<FBoundingBox> BoundingBoxes;
+  BoundingBoxes = UBoundingBoxCalculator::GetBoundingBoxOfActors(FoundActors, TagQueried);
+
+  return BoundingBoxes;
 }

@@ -16,13 +16,13 @@ DO_CLEAN_INTERMEDIATE=false
 PROPS_MAP_NAME=PropsMap
 PACKAGE_CONFIG=Shipping
 
-OPTS=`getopt -o h --long help,config:,no-zip,clean-intermediate,packages: -n 'parse-options' -- "$@"`
+OPTS=`getopt -o h --long help,config:,no-zip,clean-intermediate,packages:,python-version: -n 'parse-options' -- "$@"`
 
 if [ $? != 0 ] ; then echo "$USAGE_STRING" ; exit 2 ; fi
 
 eval set -- "$OPTS"
 
-while true; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --config )
       PACKAGE_CONFIG="$2"
@@ -42,7 +42,7 @@ while true; do
       exit 1
       ;;
     * )
-      break ;;
+      shift ;;
   esac
 done
 
@@ -96,7 +96,7 @@ if ${DO_CARLA_RELEASE} ; then
 
   ${UE4_ROOT}/Engine/Build/BatchFiles/RunUAT.sh BuildCookRun \
       -project="${PWD}/CarlaUE4.uproject" \
-      -nocompileeditor -nop4 -cook -stage -archive -package \
+      -nocompileeditor -nop4 -cook -stage -archive -package -iterate \
       -clientconfig=${PACKAGE_CONFIG} -ue4exe=UE4Editor \
       -prereqs -targetplatform=Linux -build -utf8output \
       -archivedirectory="${RELEASE_BUILD_FOLDER}"
@@ -131,6 +131,7 @@ if ${DO_CARLA_RELEASE} ; then
   copy_if_changed "./Docs/python_api.md" "${DESTINATION}/PythonAPI/python_api.md"
   copy_if_changed "./Util/Docker/Release.Dockerfile" "${DESTINATION}/Dockerfile"
   copy_if_changed "./Util/ImportAssets.sh" "${DESTINATION}/ImportAssets.sh"
+  copy_if_changed "./Util/DockerUtils/dist/RecastBuilder" "${DESTINATION}/Tools/"
 
   copy_if_changed "./PythonAPI/carla/dist/*.egg" "${DESTINATION}/PythonAPI/carla/dist/"
   copy_if_changed "./PythonAPI/carla/agents/" "${DESTINATION}/PythonAPI/carla/agents"
@@ -138,10 +139,15 @@ if ${DO_CARLA_RELEASE} ; then
   copy_if_changed "./PythonAPI/carla/requirements.txt" "${DESTINATION}/PythonAPI/carla/"
 
   copy_if_changed "./PythonAPI/examples/*.py" "${DESTINATION}/PythonAPI/examples/"
+  copy_if_changed "./PythonAPI/examples/rss/*.py" "${DESTINATION}/PythonAPI/examples/rss/"
   copy_if_changed "./PythonAPI/examples/requirements.txt" "${DESTINATION}/PythonAPI/examples/"
 
   copy_if_changed "./PythonAPI/util/*.py" "${DESTINATION}/PythonAPI/util/"
+  copy_if_changed "./PythonAPI/util/opendrive/" "${DESTINATION}/PythonAPI/util/opendrive/"
   copy_if_changed "./PythonAPI/util/requirements.txt" "${DESTINATION}/PythonAPI/util/"
+  copy_if_changed "./PythonAPI/carla/data/*" "${DESTINATION}/PythonAPI/carla/data"
+
+  copy_if_changed "./Co-Simulation/" "${DESTINATION}/Co-Simulation/"
 
   copy_if_changed "./Unreal/CarlaUE4/Content/Carla/HDMaps/*.pcd" "${DESTINATION}/HDMaps/"
   copy_if_changed "./Unreal/CarlaUE4/Content/Carla/HDMaps/Readme.md" "${DESTINATION}/HDMaps/README"
@@ -236,7 +242,7 @@ for PACKAGE_NAME in "${PACKAGES[@]}" ; do if [[ ${PACKAGE_NAME} != "Carla" ]] ; 
     SUBST_PATH="${BUILD_FOLDER}/CarlaUE4"
     SUBST_FILE="${PACKAGE_FILE/${CARLAUE4_ROOT_FOLDER}/${SUBST_PATH}}"
 
-    # Copy the pakcage config file to package
+    # Copy the package config file to package
     mkdir -p "$(dirname ${SUBST_FILE})" && cp "${PACKAGE_FILE}" "$_"
 
     # Copy the OpenDRIVE .xodr files to package
@@ -253,8 +259,22 @@ for PACKAGE_NAME in "${PACKAGES[@]}" ; do if [[ ${PACKAGE_NAME} != "Carla" ]] ; 
 
         SUBST_FILE="${XODR_FILE/${CARLAUE4_ROOT_FOLDER}/${SUBST_PATH}}"
 
-        # Copy the pakcage config file to package
+        # Copy the package config file to package
         mkdir -p "$(dirname ${SUBST_FILE})" && cp "${XODR_FILE}" "$_"
+
+      fi
+
+      # binary files for navigation
+      BIN_FILE_PATH="${CARLAUE4_ROOT_FOLDER}/Content${i:5}"
+      MAP_NAME=${BIN_FILE_PATH##*/}
+      BIN_FILE=$(find "${CARLAUE4_ROOT_FOLDER}/Content" -name "${MAP_NAME}.bin" -print -quit)
+
+      if [ -f "${BIN_FILE}" ] ; then
+
+        SUBST_FILE="${BIN_FILE/${CARLAUE4_ROOT_FOLDER}/${SUBST_PATH}}"
+
+        # Copy the package config file to package
+        mkdir -p "$(dirname ${SUBST_FILE})" && cp "${BIN_FILE}" "$_"
 
       fi
 

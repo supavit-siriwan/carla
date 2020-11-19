@@ -13,10 +13,10 @@ matrix:
         apt:
           sources:
             - ubuntu-toolchain-r-test
-            - llvm-toolchain-xenial-7
+            - llvm-toolchain-xenial-8
           packages:
             - g++-7 # we need this one for the libstdc++.
-            - clang-7
+            - clang-8
             - ninja-build
             - python
             - python-pip
@@ -28,8 +28,10 @@ matrix:
       install:
         - pip2 install -q --user setuptools
         - pip2 install -q --user -r PythonAPI/test/requirements.txt
+        - pip2 install -q --user -r PythonAPI/carla/requirements.txt
         - pip3 install -q --user setuptools
         - pip3 install -q --user -r PythonAPI/test/requirements.txt
+        - pip3 install -q --user -r PythonAPI/carla/requirements.txt
       script:
         - while sleep 2m; do echo "still building..."; done &
         - make setup >> build.log 2>&1
@@ -81,7 +83,7 @@ matrix:
         - pip install -q --user mkdocs
       script:
         - make PythonAPI.docs
-        - git diff --quiet HEAD --; if [ ! $? -eq 0 ]; then echo "Python API reference changed, forgot to run doc_gen.py?"; exit 1; fi
+        - git diff --quiet HEAD --; if [ ! $? -eq 0 ]; then echo "Python API reference changed, forgot to run \"make PythonAPI.docs\"?"; exit 1; fi
         - mkdocs build --verbose --clean --strict --site-dir _site
 
 notifications:

@@ -65,6 +65,7 @@ namespace geom {
   std::ostream &operator<<(std::ostream &out, const BoundingBox &box) {
     out << "BoundingBox(" << box.location << ", ";
     WriteVector3D(out, "Extent", box.extent);
+    out << ", " << box.rotation;
     out << ')';
     return out;
   }
@@ -84,6 +85,22 @@ static void TransformList(const carla::geom::Transform &self, boost::python::lis
    for (auto i = 0u; i < length; ++i) {
     self.TransformPoint(boost::python::extract<carla::geom::Vector3D &>(list[i]));
   }
+}
+
+static boost::python::list BuildMatrix(const std::array<float, 16> &m) {
+  boost::python::list r_out;
+  boost::python::list r[4];
+  for (uint8_t i = 0; i < 16; ++i) { r[uint8_t(i / 4)].append(m[i]); }
+  for (uint8_t i = 0; i < 4; ++i) { r_out.append(r[i]); }
+  return r_out;
+}
+
+static auto GetTransformMatrix(const carla::geom::Transform &self) {
+  return BuildMatrix(self.GetMatrix());
+}
+
+static auto GetInverseTransformMatrix(const carla::geom::Transform &self) {
+  return BuildMatrix(self.GetInverseMatrix());
 }
 
 void export_geom() {
@@ -155,6 +172,8 @@ void export_geom() {
     .def_readwrite("yaw", &cg::Rotation::yaw)
     .def_readwrite("roll", &cg::Rotation::roll)
     .def("get_forward_vector", &cg::Rotation::GetForwardVector)
+    .def("get_right_vector", &cg::Rotation::GetRightVector)
+    .def("get_up_vector", &cg::Rotation::GetUpVector)
     .def("__eq__", &cg::Rotation::operator==)
     .def("__ne__", &cg::Rotation::operator!=)
     .def(self_ns::str(self_ns::self))
@@ -171,16 +190,29 @@ void export_geom() {
       return location;
     }, arg("in_point"))
     .def("get_forward_vector", &cg::Transform::GetForwardVector)
+    .def("get_right_vector", &cg::Transform::GetRightVector)
+    .def("get_up_vector", &cg::Transform::GetUpVector)
+    .def("get_matrix", &GetTransformMatrix)
+    .def("get_inverse_matrix", &GetInverseTransformMatrix)
     .def("__eq__", &cg::Transform::operator==)
     .def("__ne__", &cg::Transform::operator!=)
     .def(self_ns::str(self_ns::self))
   ;
 
+  class_<std::vector<cg::Transform>>("vector_of_transform")
+      .def(boost::python::vector_indexing_suite<std::vector<cg::Transform>>())
+      .def(self_ns::str(self_ns::self))
+  ;
+
   class_<cg::BoundingBox>("BoundingBox")
     .def(init<cg::Location, cg::Vector3D>(
-        (arg("location")=cg::Location(), arg("extent")=cg::Vector3D())))
+        (arg("location")=cg::Location(), arg("extent")=cg::Vector3D(), arg("rotation")=cg::Rotation())))
     .def_readwrite("location", &cg::BoundingBox::location)
     .def_readwrite("extent", &cg::BoundingBox::extent)
+    .def_readwrite("rotation", &cg::BoundingBox::rotation)
+    .def("contains", &cg::BoundingBox::Contains, arg("point"), arg("bbox_transform"))
+    .def("get_local_vertices", CALL_RETURNING_LIST(cg::BoundingBox, GetLocalVertices))
+    .def("get_world_vertices", CALL_RETURNING_LIST_1(cg::BoundingBox, GetWorldVertices, const cg::Transform&), arg("bbox_transform"))
     .def("__eq__", &cg::BoundingBox::operator==)
     .def("__ne__", &cg::BoundingBox::operator!=)
     .def(self_ns::str(self_ns::self))

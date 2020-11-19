@@ -52,7 +52,7 @@ struct CARLA_API FAssetsPaths
 };
 
 UCLASS()
-class UPrepareAssetsForCookingCommandlet
+class CARLA_API UPrepareAssetsForCookingCommandlet
   : public UCommandlet
 {
   GENERATED_BODY()
@@ -159,6 +159,10 @@ private:
   /// Workaround material for the TerrainNodes
   UPROPERTY()
   UMaterial *TerrainNodeMaterial;
+
+  /// Workaround material for the SidewalkNodes
+  UPROPERTY()
+  UMaterial *SidewalkNodeMaterial;
 
   /// Saves @a Package in .umap format in path @a PackagePath inside Unreal
   /// Content folder

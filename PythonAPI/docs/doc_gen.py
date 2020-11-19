@@ -23,6 +23,8 @@ QUERY = re.compile(r'([cC]arla(\.[a-zA-Z0-9_]+)+)')
 def create_hyperlinks(text):
     return re.sub(QUERY, r'[\1](#\1)', text)
 
+def create_getter_setter_hyperlinks(text):
+    return re.sub(QUERY, r'[\1](#\1)', text)
 
 def join(elem, separator=''):
     return separator.join(elem)
@@ -33,7 +35,7 @@ class MarkdownFile:
         self._data = ""
         self._list_depth = 0
         self.endl = '  \n'
-
+    
     def data(self):
         return self._data
 
@@ -70,13 +72,30 @@ class MarkdownFile:
     def textn(self, buf):
         self._data = join([self._data, self.list_depth(), buf, self.endl])
 
+    def first_title(self):
+        self._data = join([
+            self._data, '#Python API reference\n'])
+
+    def button_apis(self):
+        self._data = join([
+            self._data, 
+            ''])
+
     def title(self, strongness, buf):
         self._data = join([
             self._data, '\n', self.list_depth(), '#' * strongness, ' ', buf, '\n'])
 
     def title_html(self, strongness, buf):
+        if strongness == 5:
+            self._data = join([
+                self._data, '\n', self.list_depth(), '<h', str(strongness), ' style="margin-top: -20px">', buf, '</h', str(strongness),'>\n','<div style="padding-left:30px;margin-top:-25px"></div>'])
+        else:
+            self._data = join([
+                self._data, '\n', self.list_depth(), '<h', str(strongness), '>', buf, '</h', str(strongness), '>\n'])
+
+    def inherit_join(self, inh):
         self._data = join([
-            self._data, '\n', self.list_depth(), '<h', str(strongness), '>', buf, '</h', str(strongness), '>\n'])
+            self._data,'<div style="padding-left:30px;margin-top:-20px"><small><b>Inherited from ',inh,'</b></small></div></p><p>'])
 
     def note(self, buf):
         self._data = join([self._data, buf])
@@ -109,6 +128,9 @@ def brackets(buf):
 
 def parentheses(buf):
     return join(['(', buf, ')'])
+
+def small_html(buf):
+    return join(['<small>'+buf+'</small>'])
 
 
 def small(buf):
@@ -249,6 +271,42 @@ def gen_doc_method_def(method, is_indx=False, with_self=True):
     param = param[:-2]  # delete the last ', '
     return join([method_name, parentheses(param)])
 
+def gen_doc_dunder_def(dunder, is_indx=False, with_self=True):
+    """Return python def as it should be written in docs"""
+    param = ''
+    dunder_name = dunder['def_name']
+    if valid_dic_val(dunder, 'static'):
+        with_self = False
+
+    # to correclty render methods like __init__ in md
+    if dunder_name[0] == '_':
+        dunder_name = '\\' + dunder_name
+    if is_indx:
+        dunder_name = bold(dunder_name)
+    else:
+        dunder_name = bold(color(COLOR_METHOD, dunder_name))
+
+    if with_self:
+        if not 'params' in dunder or dunder['params'] is None:
+            dunder['params'] = []
+        dunder['params'].insert(0, {'param_name': 'self'})
+
+    if valid_dic_val(dunder, 'params'):
+        for p in dunder['params']:
+            default = join(['=', str(p['type'])]) if 'type' in p else ''
+            if is_indx:
+                param = join([param, bold(p['param_name']), default, ', '])
+            else:
+                param = join([param, color(COLOR_PARAM, bold(p['param_name']) + create_hyperlinks(default)), ', '])
+
+    if with_self:
+        dunder['params'] = dunder['params'][1:]
+        if not dunder['params']:  # if is empty delete it
+            del dunder['params']
+
+    param = param[:-2]  # delete the last ', '
+    return join([dunder_name, parentheses(param)])
+
 
 def gen_inst_var_indx(inst_var, class_key):
     inst_var_name = inst_var['var_name']
@@ -273,11 +331,14 @@ def add_doc_method_param(md, param):
     param_name = param['param_name']
     param_type = ''
     param_doc = ''
+    param_units = ''
     if valid_dic_val(param, 'type'):
         param_type = create_hyperlinks(param['type'])
     if valid_dic_val(param, 'doc'):
         param_doc = create_hyperlinks(md.prettify_doc(param['doc']))
-    param_type = '' if not param_type else parentheses(italic(param_type))
+    if valid_dic_val(param, 'param_units'):
+        param_units = small_html(' – '+param['param_units'])
+    param_type = '' if not param_type else parentheses(italic(param_type+param_units))
     md.list_push(code(param_name))
     if param_type:
         md.text(' ' + param_type)
@@ -317,7 +378,10 @@ def add_doc_method(md, method, class_key):
     # Return doc
     if valid_dic_val(method, 'return'):
         md.list_push(bold('Return:') + ' ')
-        md.textn(italic(create_hyperlinks(method['return'])))
+        return_units = ''
+        if valid_dic_val(method, 'return_units'):
+            return_units = small_html(' – '+method['return_units'])
+        md.textn(italic(create_hyperlinks(method['return'])+return_units))
         md.list_pop()
 
     # Note doc
@@ -339,16 +403,115 @@ def add_doc_method(md, method, class_key):
 
     md.list_pop()
 
+def add_doc_getter_setter(md, method,class_key,is_getter,other_list):
+    method_name = method['def_name']
+    method_key = join([class_key, method_name], '.')
+    method_def = gen_doc_method_def(method, False)
+    md.list_pushn(join([html_key(method_key), method_def]))
+
+    # Method doc
+    if valid_dic_val(method, 'doc'):
+        md.textn(create_hyperlinks(md.prettify_doc(method['doc'])))
+
+    printed_title = False
+    if valid_dic_val(method, 'params'):
+        for param in method['params']:
+            # is_self = valid_dic_val(param, 'param_name') and param['param_name'] == 'self'
+            have_doc = valid_dic_val(param, 'doc')
+            have_type = valid_dic_val(param, 'type')
+            if not have_doc and not have_type:
+                continue
+            # Print the 'Parameters' title once
+            if not printed_title:
+                printed_title = True
+                md.list_push(bold('Parameters:') + '\n')
+            add_doc_method_param(md, param)
+    if printed_title:
+        md.list_pop()
+
+    # Return doc
+    if valid_dic_val(method, 'return'):
+        md.list_push(bold('Return:') + ' ')
+        return_units = ''
+        if valid_dic_val(method, 'return_units'):
+            return_units = small_html(' – '+method['return_units'])
+        md.textn(italic(create_hyperlinks(method['return'])+return_units))
+        md.list_pop()
+
+    # If setter/getter
+    for element in other_list:
+        el_name = element['def_name']
+        if el_name[4:] == method_name[4:]:
+            if is_getter:
+                md.list_push(bold('Setter:') + ' ')
+            else:
+                md.list_push(bold('Getter:') + ' ')
+            md.textn(italic(create_hyperlinks(class_key+'.'+el_name)))
+            md.list_pop()
+
+    # Note doc
+    if valid_dic_val(method, 'note'):
+        md.list_push(bold('Note:') + ' ')
+        md.textn(color(COLOR_NOTE, italic(create_hyperlinks(method['note']))))
+        md.list_pop()
+
+    # Warning doc
+    if valid_dic_val(method, 'warning'):
+        md.list_push(bold('Warning:') + ' ')
+        md.textn(color(COLOR_WARNING, italic(create_hyperlinks(method['warning']))))
+        md.list_pop()
+
+    # Raises error doc
+    if valid_dic_val(method, 'raises'):
+        md.list_pushn(bold('Raises:') + ' ' + method['raises'])
+        md.list_pop()
+
+    md.list_pop()
+
+def add_doc_dunder(md, dunder, class_key):
+    dunder_name = dunder['def_name']
+    dunder_key = join([class_key, dunder_name], '.')
+    dunder_def = gen_doc_dunder_def(dunder, False)
+    md.list_pushn(join([html_key(dunder_key), dunder_def]))
+
+    # Dunder doc
+    if valid_dic_val(dunder, 'doc'):
+        md.textn(create_hyperlinks(md.prettify_doc(dunder['doc'])))
+
+    # Return doc
+    if valid_dic_val(dunder, 'return'):
+        md.list_push(bold('Return:') + ' ')
+        md.textn(italic(create_hyperlinks(dunder['return'])))
+        md.list_pop()
+
+    md.list_pop()
+
+def add_doc_dunder_param(md, param):
+    param_name = param['param_name']
+    param_type = ''
+    if valid_dic_val(param, 'type'):
+        param_type = create_hyperlinks(param['type'])
+    param_type = '' if not param_type else parentheses(italic(param_type))
+    md.list_push(code(param_name))
+    if param_type:
+        md.text(' ' + param_type)
+        md.new_line()
+    else:
+        md.new_line()
+    md.list_pop()
+
 
 def add_doc_inst_var(md, inst_var, class_key):
     var_name = inst_var['var_name']
     var_key = join([class_key, var_name], '.')
     var_type = ''
+    var_units = ''
 
     # Instance variable type
     if valid_dic_val(inst_var, 'type'):
-        var_type = ' ' + parentheses(italic(create_hyperlinks(inst_var['type'])))
-
+        if valid_dic_val(inst_var, 'var_units'):
+            var_units = small_html(' – '+inst_var['var_units'])
+        var_type = ' ' + parentheses(italic(create_hyperlinks(inst_var['type']+var_units)))
     md.list_pushn(
         html_key(var_key) +
         bold(color(COLOR_INSTANCE_VAR, var_name)) +
@@ -431,25 +594,26 @@ class Documentation:
         return md.data()
 
     def gen_body(self):
-        """Generates the documentaion body"""
+        """Generates the documentation body"""
         md = MarkdownFile()
+        md.first_title()
+        md.textn(
+        "This reference contains all the details the Python API. To consult a previous reference for a specific CARLA release, change the documentation version using the panel in the bottom right corner.<br>"
+        +"This will change the whole documentation to a previous state. Remember to go back to <i>latest</i> to get the details of the current state of CARLA.<hr>")
         for module_name in sorted(self.master_dict):
             module = self.master_dict[module_name]
             module_key = module_name
             # Generate class doc (if any)
             if valid_dic_val(module, 'classes'):
-                for cl in sorted(module['classes']):
+                for cl in sorted(module['classes'], key = lambda i: i['class_name']):
                     class_name = cl['class_name']
                     class_key = join([module_key, class_name], '.')
+                    current_title = module_name+'.'+class_name
+                    md.title(2, join([current_title,'<a name="'+current_title+'"></a>']))
                     inherits = ''
                     if valid_dic_val(cl, 'parent'):
-                        inherits = small(parentheses(create_hyperlinks(cl['parent'])))
-                    md.title(2, join([
-                        module_name, '.',
-                        class_name,
-                        html_key(class_key),
-                        inherits, ' ',
-                        small(italic('class'))]))
+                        inherits = italic(create_hyperlinks(cl['parent']))
+                        md.inherit_join(inherits)
                     # Class main doc
                     if valid_dic_val(cl, 'doc'):
                         md.textn(create_hyperlinks(md.prettify_doc(cl['doc'])))
@@ -460,9 +624,35 @@ class Documentation:
                             add_doc_inst_var(md, inst_var, class_key)
                     # Generate method doc (if any)
                     if valid_dic_val(cl, 'methods'):
-                        md.title_html(3, 'Methods')
+                        method_list = list()
+                        dunder_list = list()
+                        get_list = list()
+                        set_list = list()
                         for method in cl['methods']:
+                            method_name = method['def_name']
+                            if method_name[0] == '_' and method_name != '__init__':
+                                dunder_list.append(method)
+                            elif method_name[:4] == 'get_':
+                                get_list.append(method)
+                            elif method_name[:4] == 'set_':
+                                set_list.append(method)
+                            else:
+                                method_list.append(method)
+                        md.title_html(3, 'Methods')
+                        for method in method_list:
                             add_doc_method(md, method, class_key)
+                        if len(get_list)>0:
+                            md.title_html(5, 'Getters')
+                        for method in get_list:
+                            add_doc_getter_setter(md, method,class_key,True,set_list)
+                        if len(set_list)>0:
+                            md.title_html(5, 'Setters')
+                        for method in set_list:
+                            add_doc_getter_setter(md, method,class_key,False,get_list)
+                        if len(dunder_list)>0:
+                            md.title_html(5, 'Dunder methods')
+                        for method in dunder_list:
+                            add_doc_dunder(md, method, class_key)
                     md.separator()
         return md.data().strip()
 

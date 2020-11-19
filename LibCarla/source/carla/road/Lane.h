@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma
+// Copyright (c) 2020 Computer Vision Center (CVC) at the Universitat Autonoma
 // de Barcelona (UAB).
 //
 // This work is licensed under the terms of the MIT license.
@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "carla/geom/Mesh.h"
+#include "carla/geom/Transform.h"
 #include "carla/road/InformationSet.h"
 #include "carla/road/RoadTypes.h"
 
@@ -46,7 +48,7 @@ namespace road {
       Exit          = 0x1 << 18,
       OffRamp       = 0x1 << 19,
       OnRamp        = 0x1 << 20,
-      Any           = 0xFFFFFFFF
+      Any           = 0xFFFFFFFE
     };
 
   public:
@@ -79,6 +81,12 @@ namespace road {
       return _info.GetInfo<T>(s);
     }
 
+    template <typename T>
+    std::vector<const T*> GetInfos() const {
+      DEBUG_ASSERT(_lane_section != nullptr);
+      return _info.GetInfos<T>();
+    }
+
     const std::vector<Lane *> &GetNextLanes() const {
       return _next_lanes;
     }
@@ -98,6 +106,18 @@ namespace road {
     double GetDistance() const;
 
     double GetLength() const;
+
+    /// Returns the total lane width given a s
+    double GetWidth(const double s) const;
+
+    /// Checks whether the geometry is straight or not
+    bool IsStraight() const;
+
+    geom::Transform ComputeTransform(const double s) const;
+
+    /// Computes the location of the edges given a s
+    std::pair<geom::Vector3D, geom::Vector3D> GetCornerPositions(
+      const double s, const float extra_width = 0.f) const;
 
   private:
 

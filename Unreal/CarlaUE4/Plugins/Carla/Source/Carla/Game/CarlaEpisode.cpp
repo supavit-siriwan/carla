@@ -7,15 +7,24 @@
 #include "Carla.h"
 #include "Carla/Game/CarlaEpisode.h"
 
+#include <compiler/disable-ue4-macros.h>
+#include <carla/opendrive/OpenDriveParser.h>
+#include <carla/rpc/String.h>
+#include <compiler/enable-ue4-macros.h>
+
 #include "Carla/Sensor/Sensor.h"
 #include "Carla/Util/BoundingBoxCalculator.h"
 #include "Carla/Util/RandomEngine.h"
 #include "Carla/Vehicle/VehicleSpawnPoint.h"
+#include "Carla/Game/CarlaStatics.h"
 
-#include "EngineUtils.h"
 #include "Engine/StaticMeshActor.h"
+#include "EngineUtils.h"
 #include "GameFramework/SpectatorPawn.h"
+#include "GenericPlatform/GenericPlatformProcess.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 static FString UCarlaEpisode_GetTrafficSignId(ETrafficSignState State)
 {
@@ -98,6 +107,109 @@ bool UCarlaEpisode::LoadNewEpisode(const FString &MapString)
     ApplySettings(FEpisodeSettings{});
   }
   return bIsFileFound;
+}
+
+static FString BuildRecastBuilderFile()
+{
+  // Define filename with extension depending on if we are on Windows or not
+#if PLATFORM_WINDOWS
+  const FString RecastToolName = "RecastBuilder.exe";
+#else
+  const FString RecastToolName = "RecastBuilder";
+#endif // PLATFORM_WINDOWS
+
+  // Define path depending on the UE4 build type (Package or Editor)
+#if UE_BUILD_SHIPPING
+  const FString AbsoluteRecastBuilderPath = FPaths::ConvertRelativePathToFull(
+      FPaths::RootDir() + "Tools/" + RecastToolName);
+#else
+  const FString AbsoluteRecastBuilderPath = FPaths::ConvertRelativePathToFull(
+      FPaths::ProjectDir() + "../../Util/DockerUtils/dist/" + RecastToolName);
+#endif
+  return AbsoluteRecastBuilderPath;
+}
+
+bool UCarlaEpisode::LoadNewOpendriveEpisode(
+    const FString &OpenDriveString,
+    const carla::rpc::OpendriveGenerationParameters &Params)
+{
+  if (OpenDriveString.IsEmpty())
+  {
+    UE_LOG(LogCarla, Error, TEXT("The OpenDrive string is empty."));
+    return false;
+  }
+
+  // Build the Map from the OpenDRIVE data
+  const auto CarlaMap = carla::opendrive::OpenDriveParser::Load(
+      carla::rpc::FromLongFString(OpenDriveString));
+
+  // Check the Map is correclty generated
+  if (!CarlaMap.has_value())
+  {
+    UE_LOG(LogCarla, Error, TEXT("The OpenDrive string is invalid or not supported"));
+    return false;
+  }
+
+  // Generate the OBJ (as string)
+  const auto RoadMesh = CarlaMap->GenerateMesh(Params.vertex_distance);
+  const auto CrosswalksMesh = CarlaMap->GetAllCrosswalkMesh();
+  const auto RecastOBJ = (RoadMesh + CrosswalksMesh).GenerateOBJForRecast();
+
+  const FString AbsoluteOBJPath = FPaths::ConvertRelativePathToFull(
+      FPaths::ProjectContentDir() + "Carla/Maps/Nav/OpenDriveMap.obj");
+
+  // Store the OBJ string to a file in order to that RecastBuilder can load it
+  FFileHelper::SaveStringToFile(
+      carla::rpc::ToLongFString(RecastOBJ),
+      *AbsoluteOBJPath,
+      FFileHelper::EEncodingOptions::ForceUTF8,
+      &IFileManager::Get());
+
+  const FString AbsoluteXODRPath = FPaths::ConvertRelativePathToFull(
+      FPaths::ProjectContentDir() + "Carla/Maps/OpenDrive/OpenDriveMap.xodr");
+
+  // Copy the OpenDrive as a file in the serverside
+  FFileHelper::SaveStringToFile(
+      OpenDriveString,
+      *AbsoluteXODRPath,
+      FFileHelper::EEncodingOptions::ForceUTF8,
+      &IFileManager::Get());
+
+  if (!FPaths::FileExists(AbsoluteXODRPath))
+  {
+    UE_LOG(LogCarla, Error, TEXT("ERROR: XODR not copied!"));
+    return false;
+  }
+
+  UCarlaGameInstance * GameInstance = UCarlaStatics::GetGameInstance(GetWorld());
+  if(GameInstance)
+  {
+    GameInstance->SetOpendriveGenerationParameters(Params);
+  }
+  else
+  {
+    carla::log_warning("Missing game instance");
+  }
+
+  const FString AbsoluteRecastBuilderPath = BuildRecastBuilderFile();
+
+  if (FPaths::FileExists(AbsoluteRecastBuilderPath) &&
+      Params.enable_pedestrian_navigation)
+  {
+    /// @todo this can take too long to finish, clients need a method
+    /// to know if the navigation is available or not.
+    FPlatformProcess::CreateProc(
+        *AbsoluteRecastBuilderPath, *AbsoluteOBJPath,
+        true, true, true, nullptr, 0, nullptr, nullptr);
+  }
+  else
+  {
+    UE_LOG(LogCarla, Warning, TEXT("'RecastBuilder' not present under '%s', "
+        "the binaries for pedestrian navigation will not be created."),
+        *AbsoluteRecastBuilderPath);
+  }
+
+  return true;
 }
 
 void UCarlaEpisode::ApplySettings(const FEpisodeSettings &Settings)
@@ -187,6 +299,18 @@ void UCarlaEpisode::InitializeAtBeginPlay()
     ActorDispatcher->RegisterActor(*Actor, Description);
   }
 
+  // get the definition id for static.prop.mesh
+  auto Definitions = GetActorDefinitions();
+  uint32 StaticMeshUId = 0;
+  for (auto& Definition : Definitions)
+  {
+    if (Definition.Id == "static.prop.mesh")
+    {
+      StaticMeshUId = Definition.UId;
+      break;
+    }
+  }
+
   for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
   {
     auto Actor = *It;
@@ -196,8 +320,15 @@ void UCarlaEpisode::InitializeAtBeginPlay()
     if (MeshComponent->Mobility == EComponentMobility::Movable)
     {
       FActorDescription Description;
-      Description.Id = TEXT("static.prop");
+      Description.Id = TEXT("static.prop.mesh");
+      Description.UId = StaticMeshUId;
       Description.Class = Actor->GetClass();
+      Description.Variations.Add("mesh_path",
+          FActorAttribute{"mesh_path", EActorAttributeType::String,
+          MeshComponent->GetStaticMesh()->GetPathName()});
+      Description.Variations.Add("mass",
+          FActorAttribute{"mass", EActorAttributeType::Float,
+          FString::SanitizeFloat(MeshComponent->GetMass())});
       ActorDispatcher->RegisterActor(*Actor, Description);
     }
   }
@@ -216,13 +347,13 @@ void UCarlaEpisode::EndPlay(void)
   }
 }
 
-std::string UCarlaEpisode::StartRecorder(std::string Name)
+std::string UCarlaEpisode::StartRecorder(std::string Name, bool AdditionalData)
 {
   std::string result;
 
   if (Recorder)
   {
-    result = Recorder->Start(Name, MapName);
+    result = Recorder->Start(Name, MapName, AdditionalData);
   }
   else
   {

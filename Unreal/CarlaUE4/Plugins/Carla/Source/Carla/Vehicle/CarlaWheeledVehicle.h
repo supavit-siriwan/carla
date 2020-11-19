@@ -10,8 +10,10 @@
 
 #include "Vehicle/CarlaWheeledVehicleState.h"
 #include "Vehicle/VehicleControl.h"
+#include "Vehicle/VehicleLightState.h"
 #include "Vehicle/VehicleInputPriority.h"
 #include "Vehicle/VehiclePhysicsControl.h"
+#include "VehicleVelocityControl.h"
 #include "WheeledVehicleMovementComponent4W.h"
 
 #include "CoreMinimal.h"
@@ -108,9 +110,15 @@ public:
     return State;
   }
 
-  FVehiclePhysicsControl GetVehiclePhysicsControl();
+  UFUNCTION(Category = "CARLA Wheeled Vehicle", BlueprintCallable)
+  FVehiclePhysicsControl GetVehiclePhysicsControl() const;
+
+  UFUNCTION(Category = "CARLA Wheeled Vehicle", BlueprintCallable)
+  FVehicleLightState GetVehicleLightState() const;
 
   void ApplyVehiclePhysicsControl(const FVehiclePhysicsControl &PhysicsControl);
+
+  void SetVehicleLightState(const FVehicleLightState &LightState);
 
   /// @}
   // ===========================================================================
@@ -128,6 +136,12 @@ public:
       InputControl.Priority = Priority;
     }
   }
+
+  UFUNCTION(Category = "CARLA Wheeled Vehicle", BlueprintCallable)
+  void ActivateVelocityControl(const FVector &Velocity);
+
+  UFUNCTION(Category = "CARLA Wheeled Vehicle", BlueprintCallable)
+  void DeactivateVelocityControl();
 
   /// @todo This function should be private to AWheeledVehicleAIController.
   void FlushVehicleControl();
@@ -186,6 +200,12 @@ protected:
 
   virtual void BeginPlay() override;
 
+  UFUNCTION(BlueprintImplementableEvent)
+  void RefreshLightState(const FVehicleLightState &VehicleLightState);
+
+  UFUNCTION(BlueprintCallable, CallInEditor)
+  void AdjustVehicleBounds();
+
 private:
 
   /// Current state of the vehicle controller (for debugging purposes).
@@ -195,10 +215,14 @@ private:
   UPROPERTY(Category = "CARLA Wheeled Vehicle", EditAnywhere)
   UBoxComponent *VehicleBounds;
 
+  UPROPERTY(Category = "CARLA Wheeled Vehicle", EditAnywhere)
+  UVehicleVelocityControl* VelocityControl;
+
   struct
   {
     EVehicleInputPriority Priority = EVehicleInputPriority::INVALID;
     FVehicleControl Control;
+    FVehicleLightState LightState;
   }
   InputControl;
 

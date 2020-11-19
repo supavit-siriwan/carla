@@ -28,10 +28,6 @@ namespace client {
     return GetEpisode().Lock()->GetActorAngularVelocity(*this);
   }
 
-  void Actor::SetAngularVelocity(const geom::Vector3D &vector) {
-    GetEpisode().Lock()->SetActorAngularVelocity(*this, vector);
-  }
-
   geom::Vector3D Actor::GetAcceleration() const {
     return GetEpisode().Lock()->GetActorAcceleration(*this);
   }
@@ -44,16 +40,52 @@ namespace client {
     GetEpisode().Lock()->SetActorTransform(*this, transform);
   }
 
-  void Actor::SetVelocity(const geom::Vector3D &vector) {
-    GetEpisode().Lock()->SetActorVelocity(*this, vector);
+  void Actor::SetTargetVelocity(const geom::Vector3D &vector) {
+    GetEpisode().Lock()->SetActorTargetVelocity(*this, vector);
   }
 
-  void Actor::AddImpulse(const geom::Vector3D &vector) {
-    GetEpisode().Lock()->AddActorImpulse(*this, vector);
+  void Actor::SetTargetAngularVelocity(const geom::Vector3D &vector) {
+    GetEpisode().Lock()->SetActorTargetAngularVelocity(*this, vector);
+  }
+
+  void Actor::EnableConstantVelocity(const geom::Vector3D &vector) {
+    GetEpisode().Lock()->EnableActorConstantVelocity(*this, vector);
+  }
+
+  void Actor::DisableConstantVelocity() {
+    GetEpisode().Lock()->DisableActorConstantVelocity(*this);
+  }
+
+  void Actor::AddImpulse(const geom::Vector3D &impulse) {
+    GetEpisode().Lock()->AddActorImpulse(*this, impulse);
+  }
+
+  void Actor::AddImpulse(const geom::Vector3D &impulse, const geom::Vector3D &location) {
+    GetEpisode().Lock()->AddActorImpulse(*this, impulse, location);
+  }
+
+  void Actor::AddForce(const geom::Vector3D &force) {
+    GetEpisode().Lock()->AddActorForce(*this, force);
+  }
+
+  void Actor::AddForce(const geom::Vector3D &force, const geom::Vector3D &location) {
+    GetEpisode().Lock()->AddActorForce(*this, force, location);
+  }
+
+  void Actor::AddAngularImpulse(const geom::Vector3D &vector) {
+    GetEpisode().Lock()->AddActorAngularImpulse(*this, vector);
+  }
+
+  void Actor::AddTorque(const geom::Vector3D &torque) {
+    GetEpisode().Lock()->AddActorTorque(*this, torque);
   }
 
   void Actor::SetSimulatePhysics(const bool enabled) {
     GetEpisode().Lock()->SetActorSimulatePhysics(*this, enabled);
+  }
+
+  void Actor::SetEnableGravity(const bool enabled) {
+    GetEpisode().Lock()->SetActorEnableGravity(*this, enabled);
   }
 
   bool Actor::Destroy() {

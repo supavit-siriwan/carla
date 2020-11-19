@@ -8,12 +8,14 @@
 
 #include "carla/geom/GeoLocation.h"
 #include "carla/Iterator.h"
-#include "carla/road/Junction.h"
 #include "carla/ListView.h"
 #include "carla/NonCopyable.h"
+#include "carla/road/Controller.h"
+#include "carla/road/element/RoadInfo.h"
+#include "carla/road/Junction.h"
 #include "carla/road/Road.h"
 #include "carla/road/RoadTypes.h"
-#include "carla/road/element/RoadInfo.h"
+#include "carla/road/Signal.h"
 
 #include <boost/iterator/transform_iterator.hpp>
 
@@ -39,6 +41,10 @@ namespace road {
 
     std::unordered_map<JuncId, Junction> &GetJunctions();
 
+    const std::unordered_map<JuncId, Junction> &GetJunctions() const {
+      return _junctions;
+    }
+
     bool ContainsRoad(RoadId id) const {
       return (_roads.find(id) != _roads.end());
     }
@@ -48,6 +54,8 @@ namespace road {
     const Road &GetRoad(const RoadId id) const;
 
     Junction *GetJunction(JuncId id);
+
+    const Junction *GetJunction(JuncId id) const;
 
     template <typename T>
     auto GetRoadInfo(const RoadId id, const double s) {
@@ -67,6 +75,14 @@ namespace road {
       return _roads.size();
     }
 
+    const std::unordered_map<SignId, std::unique_ptr<Signal>> &GetSignals() const {
+      return _signals;
+    }
+
+    const std::unordered_map<ContId, std::unique_ptr<Controller>>& GetControllers() const {
+      return _controllers;
+    }
+
   private:
 
     friend class MapBuilder;
@@ -78,6 +94,10 @@ namespace road {
     std::unordered_map<RoadId, Road> _roads;
 
     std::unordered_map<JuncId, Junction> _junctions;
+
+    std::unordered_map<SignId, std::unique_ptr<Signal>> _signals;
+
+    std::unordered_map<ContId, std::unique_ptr<Controller>> _controllers;
   };
 
 } // namespace road

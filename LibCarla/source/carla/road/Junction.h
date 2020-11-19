@@ -6,10 +6,12 @@
 
 #pragma once
 
+#include "carla/geom/BoundingBox.h"
 #include "carla/NonCopyable.h"
 #include "carla/road/RoadTypes.h"
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <string>
 
@@ -64,6 +66,22 @@ namespace road {
       return _connections;
     }
 
+    std::unordered_map<ConId, Connection> GetConnections() const {
+      return _connections;
+    }
+
+    carla::geom::BoundingBox GetBoundingBox() const{
+      return _bounding_box;
+    }
+
+    bool RoadHasConflicts(RoadId road_id) const {
+      return _road_conflicts.count(road_id) > 0;
+    }
+
+    const std::unordered_set<RoadId> & GetConflictsOfRoad(RoadId road_id) const {
+      return _road_conflicts.at(road_id);
+    }
+
   private:
 
     friend MapBuilder;
@@ -73,6 +91,13 @@ namespace road {
     std::string _name;
 
     std::unordered_map<ConId, Connection> _connections;
+
+    std::set<ContId> _controllers;
+
+    std::unordered_map<RoadId, std::unordered_set<RoadId>>
+        _road_conflicts;
+
+    carla::geom::BoundingBox _bounding_box;
   };
 
 } // road

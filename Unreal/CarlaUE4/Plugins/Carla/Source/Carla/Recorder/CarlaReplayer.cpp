@@ -26,7 +26,7 @@ void CarlaReplayer::Stop(bool bKeepActors)
     }
 
     // callback
-    Helper.ProcessReplayerFinish(bKeepActors);
+    Helper.ProcessReplayerFinish(bKeepActors, IgnoreHero, IsHeroMap);
   }
 
   File.close();
@@ -64,6 +64,7 @@ void CarlaReplayer::Rewind(void)
   Frame.DurationThis = 0.0f;
 
   MappedId.clear();
+  IsHeroMap.clear();
 
   // read geneal Info
   RecInfo.Read(File);
@@ -177,6 +178,7 @@ std::string CarlaReplayer::ReplayFile(std::string Filename, double TimeStart, do
   // if we don't need to load a new map, then start
   if (!Autoplay.Enabled)
   {
+    Helper.RemoveStaticProps();
     // process all events until the time
     ProcessToTime(TimeStart, true);
     // mark as enabled
@@ -235,6 +237,8 @@ void CarlaReplayer::CheckPlayAfterMapLoaded(void)
 
   // apply time factor
   TimeFactor = Autoplay.TimeFactor;
+
+  Helper.RemoveStaticProps();
 
   // process all events until the time
   ProcessToTime(TimeStart, true);
@@ -332,6 +336,22 @@ void CarlaReplayer::ProcessToTime(double Time, bool IsFirstTime)
           SkipPacket();
         break;
 
+      // vehicle light animation
+      case static_cast<char>(CarlaRecorderPacketId::VehicleLight):
+        if (bFrameFound)
+          ProcessLightVehicle();
+        else
+          SkipPacket();
+        break;
+
+      // scene lights animation
+      case static_cast<char>(CarlaRecorderPacketId::SceneLight):
+        if (bFrameFound)
+          ProcessLightScene();
+        else
+          SkipPacket();
+        break;
+
       // frame end
       case static_cast<char>(CarlaRecorderPacketId::FrameEnd):
         if (bFrameFound)
@@ -379,8 +399,9 @@ void CarlaReplayer::ProcessEventsAdd(void)
     auto Result = Helper.ProcessReplayerEventAdd(
         EventAdd.Location,
         EventAdd.Rotation,
-        std::move(EventAdd.Description),
-        EventAdd.DatabaseId);
+        EventAdd.Description,
+        EventAdd.DatabaseId,
+        IgnoreHero);
 
     switch (Result.first)
     {
@@ -400,6 +421,22 @@ void CarlaReplayer::ProcessEventsAdd(void)
         // mapping id (say desired Id is mapped to what)
         MappedId[EventAdd.DatabaseId] = Result.second;
         break;
+    }
+
+    // check to mark if actor is a hero vehicle or not
+    if (Result.first > 0)
+    {
+      // init
+      IsHeroMap[Result.second] = false;
+      for (const auto &Item : EventAdd.Description.Attributes)
+      {
+        if (Item.Id == "role_name" && Item.Value == "hero")
+        {
+          // mark as hero
+          IsHeroMap[Result.second] = true;
+          break;
+        }
+      }
     }
   }
 }
@@ -469,7 +506,11 @@ void CarlaReplayer::ProcessAnimVehicle(void)
   {
     Vehicle.Read(File);
     Vehicle.DatabaseId = MappedId[Vehicle.DatabaseId];
-    Helper.ProcessReplayerAnimVehicle(Vehicle);
+    // check if ignore this actor
+    if (!(IgnoreHero && IsHeroMap[Vehicle.DatabaseId]))
+    {
+      Helper.ProcessReplayerAnimVehicle(Vehicle);
+    }
   }
 }
 
@@ -485,7 +526,44 @@ void CarlaReplayer::ProcessAnimWalker(void)
   {
     Walker.Read(File);
     Walker.DatabaseId = MappedId[Walker.DatabaseId];
-    Helper.ProcessReplayerAnimWalker(Walker);
+    // check if ignore this actor
+    if (!(IgnoreHero && IsHeroMap[Walker.DatabaseId]))
+    {
+      Helper.ProcessReplayerAnimWalker(Walker);
+    }
+  }
+}
+
+void CarlaReplayer::ProcessLightVehicle(void)
+{
+  uint16_t Total;
+  CarlaRecorderLightVehicle LightVehicle;
+
+  // read Total walkers
+  ReadValue<uint16_t>(File, Total);
+  for (uint16_t i = 0; i < Total; ++i)
+  {
+    LightVehicle.Read(File);
+    LightVehicle.DatabaseId = MappedId[LightVehicle.DatabaseId];
+    // check if ignore this actor
+    if (!(IgnoreHero && IsHeroMap[LightVehicle.DatabaseId]))
+    {
+      Helper.ProcessReplayerLightVehicle(LightVehicle);
+    }
+  }
+}
+
+void CarlaReplayer::ProcessLightScene(void)
+{
+  uint16_t Total;
+  CarlaRecorderLightScene LightScene;
+
+  // read Total light events
+  ReadValue<uint16_t>(File, Total);
+  for (uint16_t i = 0; i < Total; ++i)
+  {
+    LightScene.Read(File);
+    Helper.ProcessReplayerLightScene(LightScene);
   }
 }
 
@@ -545,30 +623,34 @@ void CarlaReplayer::UpdatePositions(double Per, double DeltaTime)
   }
 
   // go through each actor and update
-  for (i = 0; i < CurrPos.size(); ++i)
+  for (auto &Pos : CurrPos)
   {
-    // check if exist a previous position
-    auto Result = TempMap.find(CurrPos[i].DatabaseId);
-    if (Result != TempMap.end())
+    // check if ignore this actor
+    if (!(IgnoreHero && IsHeroMap[Pos.DatabaseId]))
     {
-      // check if time factor is high
-      if (TimeFactor >= 2.0)
-        // assign first position
-        InterpolatePosition(PrevPos[Result->second], CurrPos[i], 0.0, DeltaTime);
+      // check if exist a previous position
+      auto Result = TempMap.find(Pos.DatabaseId);
+      if (Result != TempMap.end())
+      {
+        // check if time factor is high
+        if (TimeFactor >= 2.0)
+          // assign first position
+          InterpolatePosition(PrevPos[Result->second], Pos, 0.0, DeltaTime);
+        else
+          // interpolate
+          InterpolatePosition(PrevPos[Result->second], Pos, Per, DeltaTime);
+      }
       else
-        // interpolate
-        InterpolatePosition(PrevPos[Result->second], CurrPos[i], Per, DeltaTime);
-    }
-    else
-    {
-      // assign last position (we don't have previous one)
-      InterpolatePosition(CurrPos[i], CurrPos[i], 0.0, DeltaTime);
+      {
+        // assign last position (we don't have previous one)
+        InterpolatePosition(Pos, Pos, 0.0, DeltaTime);
+      }
     }
 
     // move the camera to follow this actor if required
     if (NewFollowId != 0)
     {
-      if (NewFollowId == CurrPos[i].DatabaseId)
+      if (NewFollowId == Pos.DatabaseId)
         Helper.SetCameraPosition(NewFollowId, FVector(-1000, 0, 500), FQuat::MakeFromEuler({0, -25, 0}));
     }
   }

@@ -13,6 +13,8 @@
 #include "Carla/Traffic/TrafficLightBase.h"
 #include "Carla/Util/BoundingBoxCalculator.h"
 
+namespace crp = carla::rpc;
+
 static FActorView::ActorType FActorRegistry_GetActorType(const FActorView &View)
 {
   if (!View.IsValid())
@@ -31,17 +33,21 @@ static FActorView::ActorType FActorRegistry_GetActorType(const FActorView &View)
   {
     return FActorView::ActorType::TrafficLight;
   }
+  else if (nullptr != Cast<ATrafficSignBase>(View.GetActor()))
+  {
+    return FActorView::ActorType::TrafficSign;
+  }
   else
   {
     return FActorView::ActorType::Other;
   }
 }
 
-static FString GetRelevantTagAsString(const TSet<ECityObjectLabel> &SemanticTags)
+static FString GetRelevantTagAsString(const TSet<crp::CityObjectLabel> &SemanticTags)
 {
   for (auto &&Tag : SemanticTags)
   {
-    if ((Tag != ECityObjectLabel::None) && (Tag != ECityObjectLabel::Other))
+    if ((Tag != crp::CityObjectLabel::None) && (Tag != crp::CityObjectLabel::Other))
     {
       auto Str = ATagger::GetTagAsString(Tag).ToLower();
       return (Str.EndsWith(TEXT("s")) ? Str.LeftChop(1) : Str);

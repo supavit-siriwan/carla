@@ -1,4 +1,4 @@
-ARG UE4_V=4.22.2
+ARG UE4_V=4.24.3
 FROM adamrehn/ue4-source:${UE4_V}-opengl
 
 USER root
@@ -9,11 +9,11 @@ RUN apt-get update ; \
   apt-get install -y wget software-properties-common && \
   add-apt-repository ppa:ubuntu-toolchain-r/test && \
   wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - && \
-  apt-add-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main" && \
+  apt-add-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main" && \
   apt-get update ; \
   apt-get install -y build-essential \
-    clang-7 \
-    lld-7 \
+    clang-8 \
+    lld-8 \
     g++-7 \
     cmake \
     ninja-build \
@@ -33,11 +33,12 @@ RUN apt-get update ; \
     autoconf \
     libtool \
     rsync \
+    libxml2-dev \
     aria2 && \
-  pip2 install setuptools && \
-  pip3 install setuptools && \
-  update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-7/bin/clang++ 170 && \
-  update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-7/bin/clang 170
+  pip3 install -Iv setuptools==47.3.1 && \
+  pip3 install distro && \
+  update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-8/bin/clang++ 180 && \
+  update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-8/bin/clang 180
 
 USER ue4
 

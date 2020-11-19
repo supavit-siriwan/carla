@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma
+// Copyright (c) 2020 Computer Vision Center (CVC) at the Universitat Autonoma
 // de Barcelona (UAB).
 //
 // This work is licensed under the terms of the MIT license.
@@ -6,13 +6,16 @@
 
 #pragma once
 
-#include "carla/NonCopyable.h"
+#include "carla/geom/Mesh.h"
+#include "carla/geom/Rtree.h"
 #include "carla/geom/Transform.h"
-#include "carla/road/MapData.h"
-#include "carla/road/RoadTypes.h"
+#include "carla/NonCopyable.h"
 #include "carla/road/element/LaneMarking.h"
 #include "carla/road/element/RoadInfoMarkRecord.h"
 #include "carla/road/element/Waypoint.h"
+#include "carla/road/MapData.h"
+#include "carla/road/RoadTypes.h"
+#include "carla/rpc/OpendriveGenerationParameters.h"
 
 #include <boost/optional.hpp>
 
@@ -30,7 +33,9 @@ namespace road {
     /// -- Constructor ---------------------------------------------------------
     /// ========================================================================
 
-    Map(MapData m) : _data(std::move(m)) {}
+    Map(MapData m) : _data(std::move(m)) {
+      CreateRtree();
+    }
 
     /// ========================================================================
     /// -- Georeference --------------------------------------------------------
@@ -51,6 +56,11 @@ namespace road {
     boost::optional<element::Waypoint> GetWaypoint(
         const geom::Location &location,
         uint32_t lane_type = static_cast<uint32_t>(Lane::LaneType::Driving)) const;
+
+    boost::optional<element::Waypoint> GetWaypoint(
+        RoadId road_id,
+        LaneId lane_id,
+        float s) const;
 
     geom::Transform ComputeTransform(Waypoint waypoint) const;
 
@@ -75,6 +85,25 @@ namespace road {
         const geom::Location &origin,
         const geom::Location &destination) const;
 
+    /// Returns a list of locations defining 2d areas,
+    /// when a location is repeated an area is finished
+    std::vector<geom::Location> GetAllCrosswalkZones() const;
+
+    /// Data structure for the signal search
+    struct SignalSearchData {
+      const element::RoadInfoSignal *signal;
+      Waypoint waypoint;
+      double accumulated_s = 0;
+    };
+
+    /// Searches signals from an initial waypoint until the defined distance.
+    std::vector<SignalSearchData> GetSignalsInDistance(
+        Waypoint waypoint, double distance, bool stop_at_junction = false) const;
+
+    /// Return all RoadInfoSignal in the map
+    std::vector<const element::RoadInfoSignal*>
+        GetAllSignalReferences() const;
+
     /// ========================================================================
     /// -- Waypoint generation -------------------------------------------------
     /// ========================================================================
@@ -88,6 +117,9 @@ namespace road {
     /// Return the list of waypoints at @a distance such that a vehicle at @a
     /// waypoint could drive to.
     std::vector<Waypoint> GetNext(Waypoint waypoint, double distance) const;
+    /// Return the list of waypoints at @a distance in the reversed direction
+    /// that a vehicle at @a waypoint could drive to.
+    std::vector<Waypoint> GetPrevious(Waypoint waypoint, double distance) const;
 
     /// Return a waypoint at the lane of @a waypoint's right lane.
     boost::optional<Waypoint> GetRight(Waypoint waypoint) const;
@@ -99,11 +131,46 @@ namespace road {
     std::vector<Waypoint> GenerateWaypoints(double approx_distance) const;
 
     /// Generate waypoints on each @a lane at the start of each @a road
-    std::vector<Waypoint> GenerateWaypointsOnRoadEntries() const;
+    std::vector<Waypoint> GenerateWaypointsOnRoadEntries(Lane::LaneType lane_type = Lane::LaneType::Driving) const;
+
+    /// Generate waypoints at the entry of each lane of the specified road
+    std::vector<Waypoint> GenerateWaypointsInRoad(RoadId road_id, Lane::LaneType lane_type = Lane::LaneType::Driving) const;
 
     /// Generate the minimum set of waypoints that define the topology of @a
     /// map. The waypoints are placed at the entrance of each lane.
     std::vector<std::pair<Waypoint, Waypoint>> GenerateTopology() const;
+
+    /// Generate waypoints of the junction
+    std::vector<std::pair<Waypoint, Waypoint>> GetJunctionWaypoints(JuncId id, Lane::LaneType lane_type) const;
+
+    Junction* GetJunction(JuncId id);
+
+    const Junction* GetJunction(JuncId id) const;
+
+    std::unordered_map<road::RoadId, std::unordered_set<road::RoadId>>
+        ComputeJunctionConflicts(JuncId id) const;
+
+    /// Buids a mesh based on the OpenDRIVE
+    geom::Mesh GenerateMesh(
+        const double distance,
+        const float extra_width = 0.6f,
+        const  bool smooth_junctions = true) const;
+
+    std::vector<std::unique_ptr<geom::Mesh>> GenerateChunkedMesh(
+        const rpc::OpendriveGenerationParameters& params) const;
+
+    /// Buids a mesh of all crosswalks based on the OpenDRIVE
+    geom::Mesh GetAllCrosswalkMesh() const;
+
+    geom::Mesh GenerateWalls(const double distance, const float wall_height) const;
+
+    const std::unordered_map<SignId, std::unique_ptr<Signal>>& GetSignals() const {
+      return _data.GetSignals();
+    }
+
+    const std::unordered_map<ContId, std::unique_ptr<Controller>>& GetControllers() const {
+      return _data.GetControllers();
+    }
 
 #ifdef LIBCARLA_WITH_GTEST
     MapData &GetMap() {
@@ -113,7 +180,27 @@ namespace road {
 
 private:
 
+    friend MapBuilder;
     MapData _data;
+
+    using Rtree = geom::SegmentCloudRtree<Waypoint>;
+    Rtree _rtree;
+
+    void CreateRtree();
+
+    /// Helper Functions for constructing the rtree element list
+    void AddElementToRtree(
+        std::vector<Rtree::TreeElement> &rtree_elements,
+        geom::Transform &current_transform,
+        geom::Transform &next_transform,
+        Waypoint &current_waypoint,
+        Waypoint &next_waypoint);
+
+    void AddElementToRtreeAndUpdateTransforms(
+        std::vector<Rtree::TreeElement> &rtree_elements,
+        geom::Transform &current_transform,
+        Waypoint &current_waypoint,
+        Waypoint &next_waypoint);
   };
 
 } // namespace road

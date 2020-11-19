@@ -7,6 +7,7 @@
 
 #include "Carla.h"
 #include "Carla/Vehicle/CarlaWheeledVehicle.h"
+#include "Carla/Game/CarlaStatics.h"
 
 #include "Components/BoxComponent.h"
 #include "Engine/CollisionProfile.h"
@@ -14,6 +15,8 @@
 #include "PhysXVehicleManager.h"
 #include "TireConfig.h"
 #include "VehicleWheel.h"
+
+#include "Rendering/SkeletalMeshRenderData.h"
 
 // =============================================================================
 // -- Constructor and destructor -----------------------------------------------
@@ -26,6 +29,9 @@ ACarlaWheeledVehicle::ACarlaWheeledVehicle(const FObjectInitializer& ObjectIniti
   VehicleBounds->SetupAttachment(RootComponent);
   VehicleBounds->SetHiddenInGame(true);
   VehicleBounds->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+
+  VelocityControl = CreateDefaultSubobject<UVehicleVelocityControl>(TEXT("VelocityControl"));
+  VelocityControl->Deactivate();
 
   GetVehicleMovementComponent()->bReverseAsBrake = false;
 }
@@ -78,6 +84,55 @@ void ACarlaWheeledVehicle::BeginPlay()
   }
 
   Vehicle4W->WheelSetups = NewWheelSetups;
+}
+
+void ACarlaWheeledVehicle::AdjustVehicleBounds()
+{
+  USkeletalMeshComponent *SkMeshComp = GetMesh();
+  USkeletalMesh* SkeletalMesh = SkMeshComp->SkeletalMesh;
+  if(!SkeletalMesh)
+  {
+    UE_LOG(LogCarla, Error, TEXT("AdjustVehicleBounds no SkeletalMesh"));
+    return;
+  }
+
+  // Get Vertex postion information from LOD 0 of the Skeletal Mesh
+  FPositionVertexBuffer& FPositionVertexBuffer = SkeletalMesh->GetResourceForRendering()->LODRenderData[0].StaticVertexBuffers.PositionVertexBuffer;
+  uint32 NumVertices = FPositionVertexBuffer.GetNumVertices();
+
+  // Look for Skeletal Mesh bounds (vertex perfect)
+  FVector MaxVertex(TNumericLimits<float>::Min());
+  FVector MinVertex(TNumericLimits<float>::Max());
+  for(uint32 i = 0; i < NumVertices; i++)
+  {
+    FVector& Pos = FPositionVertexBuffer.VertexPosition(i);
+    MaxVertex.X = (Pos.X > MaxVertex.X) ? Pos.X : MaxVertex.X;
+    MaxVertex.Y = (Pos.Y > MaxVertex.Y) ? Pos.Y : MaxVertex.Y;
+    MaxVertex.Z = (Pos.Z > MaxVertex.Z) ? Pos.Z : MaxVertex.Z;
+    MinVertex.X = (Pos.X < MinVertex.X) ? Pos.X : MinVertex.X;
+    MinVertex.Y = (Pos.Y < MinVertex.Y) ? Pos.Y : MinVertex.Y;
+    MinVertex.Z = (Pos.Z < MinVertex.Z) ? Pos.Z : MinVertex.Z;
+  }
+
+  // Calculate box extent
+  FVector Extent (
+    (MaxVertex.X - MinVertex.X) * 0.5f,
+    (MaxVertex.Y - MinVertex.Y) * 0.5f,
+    (MaxVertex.Z - MinVertex.Z) * 0.5f
+  );
+
+  // Calculate middle point
+  FVector Origin (
+    (MinVertex.X + Extent.X),
+    (MinVertex.Y + Extent.Y),
+    (MinVertex.Z + Extent.Z)
+  );
+
+  // Prepare Box Collisions
+  FTransform Transform;
+  Transform.SetTranslation(Origin);
+  VehicleBounds->SetRelativeTransform(Transform);
+  VehicleBounds->SetBoxExtent(Extent);
 }
 
 // =============================================================================
@@ -210,7 +265,7 @@ void ACarlaWheeledVehicle::SetWheelsFrictionScale(TArray<float> &WheelsFrictionS
   }
 }
 
-FVehiclePhysicsControl ACarlaWheeledVehicle::GetVehiclePhysicsControl()
+FVehiclePhysicsControl ACarlaWheeledVehicle::GetVehiclePhysicsControl() const
 {
   UWheeledVehicleMovementComponent4W *Vehicle4W = Cast<UWheeledVehicleMovementComponent4W>(
       GetVehicleMovement());
@@ -287,6 +342,11 @@ FVehiclePhysicsControl ACarlaWheeledVehicle::GetVehiclePhysicsControl()
   PhysicsControl.Wheels = Wheels;
 
   return PhysicsControl;
+}
+
+FVehicleLightState ACarlaWheeledVehicle::GetVehicleLightState() const
+{
+  return InputControl.LightState;
 }
 
 void ACarlaWheeledVehicle::ApplyVehiclePhysicsControl(const FVehiclePhysicsControl &PhysicsControl)
@@ -368,4 +428,25 @@ void ACarlaWheeledVehicle::ApplyVehiclePhysicsControl(const FVehiclePhysicsContr
     Vehicle4W->Wheels[i]->TireConfig->SetFrictionScale(PhysicsControl.Wheels[i].TireFriction);
   }
 
+  auto * Recorder = UCarlaStatics::GetRecorder(GetWorld());
+  if (Recorder && Recorder->IsEnabled())
+  {
+    Recorder->AddPhysicsControl(*this);
+  }
+}
+
+void ACarlaWheeledVehicle::ActivateVelocityControl(const FVector &Velocity)
+{
+  VelocityControl->Activate(Velocity);
+}
+
+void ACarlaWheeledVehicle::DeactivateVelocityControl()
+{
+  VelocityControl->Deactivate();
+}
+
+void ACarlaWheeledVehicle::SetVehicleLightState(const FVehicleLightState &LightState)
+{
+  InputControl.LightState = LightState;
+  RefreshLightState(LightState);
 }

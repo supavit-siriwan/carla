@@ -18,8 +18,10 @@
 
 #include <compiler/disable-ue4-macros.h>
 #include <carla/geom/BoundingBox.h>
+#include <carla/geom/GeoLocation.h>
 #include <carla/rpc/Actor.h>
 #include <carla/rpc/ActorDescription.h>
+#include <carla/rpc/OpendriveGenerationParameters.h>
 #include <carla/streaming/Server.h>
 #include <compiler/enable-ue4-macros.h>
 
@@ -52,6 +54,14 @@ public:
   /// If @a MapString is empty, the current map is reloaded.
   UFUNCTION(BlueprintCallable)
   bool LoadNewEpisode(const FString &MapString);
+
+  /// Load a new map generating the mesh from OpenDRIVE data and
+  /// start a new episode.
+  ///
+  /// If @a MapString is empty, it fails.
+  bool LoadNewOpendriveEpisode(
+      const FString &OpenDriveString,
+      const carla::rpc::OpendriveGenerationParameters &Params);
 
   // ===========================================================================
   // -- Episode settings -------------------------------------------------------
@@ -104,6 +114,12 @@ public:
   /// Return the list of recommended spawn points for vehicles.
   UFUNCTION(BlueprintCallable)
   TArray<FTransform> GetRecommendedSpawnPoints() const;
+
+  /// Return the GeoLocation point of the map loaded
+  const carla::geom::GeoLocation &GetGeoReference() const
+  {
+    return MapGeoReference;
+  }
 
   // ===========================================================================
   // -- Retrieve special actors ------------------------------------------------
@@ -264,7 +280,7 @@ public:
     return Recorder->GetReplayer();
   }
 
-  std::string StartRecorder(std::string name);
+  std::string StartRecorder(std::string name, bool AdditionalData);
 
 private:
 
@@ -313,4 +329,6 @@ private:
   AWeather *Weather = nullptr;
 
   ACarlaRecorder *Recorder = nullptr;
+
+  carla::geom::GeoLocation MapGeoReference;
 };

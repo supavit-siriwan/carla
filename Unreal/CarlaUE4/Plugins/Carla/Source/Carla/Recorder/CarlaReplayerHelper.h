@@ -26,7 +26,8 @@ public:
       FVector Location,
       FVector Rotation,
       CarlaRecorderActorDescription Description,
-      uint32_t DesiredId);
+      uint32_t DesiredId,
+      bool bIgnoreHero);
 
   // replay event for removing actor
   bool ProcessReplayerEventDel(uint32_t DatabaseId);
@@ -46,8 +47,14 @@ public:
   // set the animation for walkers
   void ProcessReplayerAnimWalker(CarlaRecorderAnimWalker Walker);
 
+  // set the vehicle light
+  void ProcessReplayerLightVehicle(CarlaRecorderLightVehicle LightVehicle);
+
+  // set scene lights
+  void ProcessReplayerLightScene(CarlaRecorderLightScene LightScene);
+
   // replay finish
-  bool ProcessReplayerFinish(bool bApplyAutopilot);
+  bool ProcessReplayerFinish(bool bApplyAutopilot, bool bIgnoreHero, std::unordered_map<uint32_t, bool> &IsHero);
 
   // set the camera position to follow an actor
   bool SetCameraPosition(uint32_t Id, FVector Offset, FQuat Rotation);
@@ -57,6 +64,8 @@ public:
 
   // set the animation speed for walkers
   void SetWalkerSpeed(uint32_t ActorId, float Speed);
+
+  void RemoveStaticProps();
 
 private:
 

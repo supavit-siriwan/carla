@@ -5,9 +5,11 @@ Deprecated/PythonClient/dist
 TrafficManager/build
 Util/Build
 Install
+Plugins
 
 /ExportedMaps
-/Import/*/
+/Import/*
+!/Import/README.md
 
 *.VC.db
 *.VC.opendb

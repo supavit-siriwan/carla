@@ -1,17 +1,48 @@
 #! /bin/bash
 
 # ==============================================================================
+# -- Parse arguments -----------------------------------------------------------
+# ==============================================================================
+
+DOC_STRING="Download and install the required libraries for carla."
+
+USAGE_STRING="Usage: $0 [--python-version=VERSION]"
+
+OPTS=`getopt -o h --long help,rebuild,clean,rss,python-version:,packages:,clean-intermediate,all,xml -n 'parse-options' -- "$@"`
+
+if [ $? != 0 ] ; then echo "$USAGE_STRING" ; exit 2 ; fi
+
+eval set -- "$OPTS"
+
+PY_VERSION=3
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --python-version )
+      PY_VERSION="$2";
+      shift 2 ;;
+    -h | --help )
+      echo "$DOC_STRING"
+      echo "$USAGE_STRING"
+      exit 1
+      ;;
+    * )
+      shift ;;
+  esac
+done
+
+# ==============================================================================
 # -- Set up environment --------------------------------------------------------
 # ==============================================================================
 
-command -v /usr/bin/clang++-7 >/dev/null 2>&1 || {
-  echo >&2 "clang 7 is required, but it's not installed.";
+command -v /usr/bin/clang++-8 >/dev/null 2>&1 || {
+  echo >&2 "clang 8 is required, but it's not installed.";
   exit 1;
 }
 
-CXX_TAG=c7
-export CC=/usr/bin/clang-7
-export CXX=/usr/bin/clang++-7
+CXX_TAG=c8
+export CC=/usr/bin/clang-8
+export CXX=/usr/bin/clang++-8
 
 source $(dirname "$0")/Environment.sh
 
@@ -22,7 +53,7 @@ pushd ${CARLA_BUILD_FOLDER} >/dev/null
 # -- Get and compile libc++ ----------------------------------------------------
 # ==============================================================================
 
-LLVM_BASENAME=llvm-7.0
+LLVM_BASENAME=llvm-8.0
 
 LLVM_INCLUDE=${PWD}/${LLVM_BASENAME}-install/include/c++/v1
 LLVM_LIBPATH=${PWD}/${LLVM_BASENAME}-install/lib
@@ -34,9 +65,9 @@ else
 
   log "Retrieving libc++."
 
-  git clone --depth=1 -b release_70  https://github.com/llvm-mirror/llvm.git ${LLVM_BASENAME}-source
-  git clone --depth=1 -b release_70  https://github.com/llvm-mirror/libcxx.git ${LLVM_BASENAME}-source/projects/libcxx
-  git clone --depth=1 -b release_70  https://github.com/llvm-mirror/libcxxabi.git ${LLVM_BASENAME}-source/projects/libcxxabi
+  git clone --depth=1 -b release_80  https://github.com/llvm-mirror/llvm.git ${LLVM_BASENAME}-source
+  git clone --depth=1 -b release_80  https://github.com/llvm-mirror/libcxx.git ${LLVM_BASENAME}-source/projects/libcxx
+  git clone --depth=1 -b release_80  https://github.com/llvm-mirror/libcxxabi.git ${LLVM_BASENAME}-source/projects/libcxxabi
 
   log "Compiling libc++."
 
@@ -69,76 +100,64 @@ unset LLVM_BASENAME
 # -- Get boost includes --------------------------------------------------------
 # ==============================================================================
 
-BOOST_VERSION=1.69.0
+BOOST_VERSION=1.72.0
 BOOST_BASENAME="boost-${BOOST_VERSION}-${CXX_TAG}"
 
 BOOST_INCLUDE=${PWD}/${BOOST_BASENAME}-install/include
 BOOST_LIBPATH=${PWD}/${BOOST_BASENAME}-install/lib
 
-if [[ -d "${BOOST_BASENAME}-install" ]] ; then
-  log "${BOOST_BASENAME} already installed."
-else
+SHOULD_BUILD_BOOST=true
 
+PYTHON_VERSION=$(/usr/bin/env python${PY_VERSION} -V)
+LIB_NAME=${PYTHON_VERSION:7:3}
+LIB_NAME=${LIB_NAME//.}
+if [[ -d "${BOOST_BASENAME}-install" ]] ; then
+  if [ -f "${BOOST_BASENAME}-install/lib/libboost_python${LIB_NAME}.a" ] ; then
+    SHOULD_BUILD_BOOST=false
+    log "${BOOST_BASENAME} already installed."
+  fi
+fi
+
+if { ${SHOULD_BUILD_BOOST} ; } ; then
   rm -Rf ${BOOST_BASENAME}-source
 
   BOOST_PACKAGE_BASENAME=boost_${BOOST_VERSION//./_}
 
   log "Retrieving boost."
-  wget "https://dl.bintray.com/boostorg/release/${BOOST_VERSION}/source/${BOOST_PACKAGE_BASENAME}.tar.gz"
-
-  log "Extracting boost for Python 2."
-  tar -xzf ${BOOST_PACKAGE_BASENAME}.tar.gz
-  mkdir -p ${BOOST_BASENAME}-install/include
-  mv ${BOOST_PACKAGE_BASENAME} ${BOOST_BASENAME}-source
-
-  pushd ${BOOST_BASENAME}-source >/dev/null
-
-  BOOST_TOOLSET="clang-7.1"
-  BOOST_CFLAGS="-fPIC -std=c++14 -DBOOST_ERROR_CODE_HEADER_ONLY"
-
-  py2="/usr/bin/env python2"
-  py2_root=`${py2} -c "import sys; print(sys.prefix)"`
-  pyv=`$py2 -c "import sys;x='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(x)";`
-  ./bootstrap.sh \
-      --with-toolset=clang \
-      --prefix=../boost-install \
-      --with-libraries=python,filesystem \
-      --with-python=${py2} --with-python-root=${py2_root}
-
-  if ${TRAVIS} ; then
-    echo "using python : ${pyv} : ${py2_root}/bin/python2 ;" > ${HOME}/user-config.jam
-  else
-    echo "using python : ${pyv} : ${py2_root}/bin/python2 ;" > project-config.jam
+  wget "https://dl.bintray.com/boostorg/release/${BOOST_VERSION}/source/${BOOST_PACKAGE_BASENAME}.tar.gz" || true
+  # try to use the backup boost we have in Jenkins
+  if [[ ! -f "${BOOST_PACKAGE_BASENAME}.tar.gz" ]] ; then
+    log "Using boost backup"
+    wget "https://carla-releases.s3.eu-west-3.amazonaws.com/Backup/${BOOST_PACKAGE_BASENAME}.tar.gz" || true
   fi
 
-  ./b2 toolset="${BOOST_TOOLSET}" cxxflags="${BOOST_CFLAGS}" --prefix="../${BOOST_BASENAME}-install" -j ${CARLA_BUILD_CONCURRENCY} stage release
-  ./b2 toolset="${BOOST_TOOLSET}" cxxflags="${BOOST_CFLAGS}" --prefix="../${BOOST_BASENAME}-install" -j ${CARLA_BUILD_CONCURRENCY} install
-  ./b2 toolset="${BOOST_TOOLSET}" cxxflags="${BOOST_CFLAGS}" --prefix="../${BOOST_BASENAME}-install" -j ${CARLA_BUILD_CONCURRENCY} --clean-all
-
-  # Get rid of  python2 build artifacts completely & do a clean build for python3
-  popd >/dev/null
-  rm -Rf ${BOOST_BASENAME}-source
-
-  log "Extracting boost for Python 3."
+  log "Extracting boost for Python ${PY_VERSION}."
   tar -xzf ${BOOST_PACKAGE_BASENAME}.tar.gz
   mkdir -p ${BOOST_BASENAME}-install/include
   mv ${BOOST_PACKAGE_BASENAME} ${BOOST_BASENAME}-source
+  # Boost patch for exception handling
+  cp "${CARLA_BUILD_FOLDER}/../Util/BoostFiles/rational.hpp" "${BOOST_BASENAME}-source/boost/rational.hpp"
+  cp "${CARLA_BUILD_FOLDER}/../Util/BoostFiles/read.hpp" "${BOOST_BASENAME}-source/boost/geometry/io/wkt/read.hpp"
+  # ---
 
   pushd ${BOOST_BASENAME}-source >/dev/null
 
-  py3="/usr/bin/env python3"
+  BOOST_TOOLSET="clang-8.0"
+  BOOST_CFLAGS="-fPIC -std=c++14 -DBOOST_ERROR_CODE_HEADER_ONLY"
+
+  py3="/usr/bin/env python${PY_VERSION}"
   py3_root=`${py3} -c "import sys; print(sys.prefix)"`
   pyv=`$py3 -c "import sys;x='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(x)";`
   ./bootstrap.sh \
       --with-toolset=clang \
       --prefix=../boost-install \
-      --with-libraries=python \
+      --with-libraries=python,filesystem,system,program_options \
       --with-python=${py3} --with-python-root=${py3_root}
 
   if ${TRAVIS} ; then
-    echo "using python : ${pyv} : ${py3_root}/bin/python3 ;" > ${HOME}/user-config.jam
+    echo "using python : ${pyv} : ${py3_root}/bin/python${PY_VERSION} ;" > ${HOME}/user-config.jam
   else
-    echo "using python : ${pyv} : ${py3_root}/bin/python3 ;" > project-config.jam
+    echo "using python : ${pyv} : ${py3_root}/bin/python${PY_VERSION} ;" > project-config.jam
   fi
 
   ./b2 toolset="${BOOST_TOOLSET}" cxxflags="${BOOST_CFLAGS}" --prefix="../${BOOST_BASENAME}-install" -j ${CARLA_BUILD_CONCURRENCY} stage release
@@ -149,6 +168,17 @@ else
   rm -Rf ${BOOST_BASENAME}-source
   rm ${BOOST_PACKAGE_BASENAME}.tar.gz
 
+  # Boost patch for exception handling
+  cp "${CARLA_BUILD_FOLDER}/../Util/BoostFiles/rational.hpp" "${BOOST_BASENAME}-install/include/boost/rational.hpp"
+  cp "${CARLA_BUILD_FOLDER}/../Util/BoostFiles/read.hpp" "${BOOST_BASENAME}-install/include/boost/geometry/io/wkt/read.hpp"
+  # ---
+
+  # Install boost dependencies
+  mkdir -p "${LIBCARLA_INSTALL_CLIENT_FOLDER}/include/system"
+  mkdir -p "${LIBCARLA_INSTALL_CLIENT_FOLDER}/lib"
+  cp -rf ${BOOST_BASENAME}-install/include/* ${LIBCARLA_INSTALL_CLIENT_FOLDER}/include/system
+  cp -rf ${BOOST_BASENAME}-install/lib/* ${LIBCARLA_INSTALL_CLIENT_FOLDER}/lib
+
 fi
 
 unset BOOST_BASENAME
@@ -157,7 +187,7 @@ unset BOOST_BASENAME
 # -- Get rpclib and compile it with libc++ and libstdc++ -----------------------
 # ==============================================================================
 
-RPCLIB_PATCH=v2.2.1_c2
+RPCLIB_PATCH=v2.2.1_c3
 RPCLIB_BASENAME=rpclib-${RPCLIB_PATCH}-${CXX_TAG}
 
 RPCLIB_LIBCXX_INCLUDE=${PWD}/${RPCLIB_BASENAME}-libcxx-install/include
@@ -289,13 +319,15 @@ unset GTEST_BASENAME
 # -- Get Recast&Detour and compile it with libc++ ------------------------------
 # ==============================================================================
 
-RECAST_COMMIT="c40188c796f089f89a42e0b939d934178dbcfc5c"
-RECAST_BASENAME=recast-${CXX_TAG}
+RECAST_HASH=cdce4e
+RECAST_COMMIT=cdce4e1a270fdf1f3942d4485954cc5e136df1df
+RECAST_BASENAME=recast-${RECAST_HASH}-${CXX_TAG}
 
 RECAST_INCLUDE=${PWD}/${RECAST_BASENAME}-install/include
 RECAST_LIBPATH=${PWD}/${RECAST_BASENAME}-install/lib
 
-if [[ -d "${RECAST_BASENAME}-install" ]] ; then
+if [[ -d "${RECAST_BASENAME}-install" &&
+      -f "${RECAST_BASENAME}-install/bin/RecastBuilder" ]] ; then
   log "${RECAST_BASENAME} already installed."
 else
   rm -Rf \
@@ -305,7 +337,7 @@ else
 
   log "Retrieving Recast & Detour"
 
-  git clone https://github.com/recastnavigation/recastnavigation.git ${RECAST_BASENAME}-source
+  git clone https://github.com/carla-simulator/recastnavigation.git ${RECAST_BASENAME}-source
 
   pushd ${RECAST_BASENAME}-source >/dev/null
 
@@ -340,7 +372,90 @@ else
 
 fi
 
+# make sure the RecastBuilder is corrctly copied
+RECAST_INSTALL_DIR="${CARLA_BUILD_FOLDER}/../Util/DockerUtils/dist"
+if [[ ! -f "${RECAST_INSTALL_DIR}/RecastBuilder" ]]; then
+  cp "${RECAST_BASENAME}-install/bin/RecastBuilder" "${RECAST_INSTALL_DIR}/"
+fi
+
 unset RECAST_BASENAME
+
+# ==============================================================================
+# -- Get and compile libpng 1.6.37 ------------------------------
+# ==============================================================================
+
+LIBPNG_VERSION=1.6.37
+LIBPNG_REPO=https://sourceforge.net/projects/libpng/files/libpng16/${LIBPNG_VERSION}/libpng-${LIBPNG_VERSION}.tar.xz
+LIBPNG_BASENAME=libpng-${LIBPNG_VERSION}
+LIBPNG_INSTALL=${LIBPNG_BASENAME}-install
+
+LIBPNG_INCLUDE=${PWD}/${LIBPNG_BASENAME}-install/include/
+LIBPNG_LIBPATH=${PWD}/${LIBPNG_BASENAME}-install/lib
+
+if [[ -d ${LIBPNG_INSTALL} ]] ; then
+  log "Libpng already installed."
+else
+  log "Retrieving libpng."
+  wget ${LIBPNG_REPO}
+
+  log "Extracting libpng."
+  tar -xf libpng-${LIBPNG_VERSION}.tar.xz
+  mv ${LIBPNG_BASENAME} ${LIBPNG_BASENAME}-source
+
+  pushd ${LIBPNG_BASENAME}-source >/dev/null
+
+  ./configure --prefix=${CARLA_BUILD_FOLDER}/${LIBPNG_INSTALL}
+  make install
+
+  popd >/dev/null
+
+  rm -Rf libpng-${LIBPNG_VERSION}.tar.xz
+  rm -Rf ${LIBPNG_BASENAME}-source
+fi
+
+# ==============================================================================
+# -- Get and compile libxerces 3.2.3 ------------------------------
+# ==============================================================================
+
+XERCESC_VERSION=3.2.3
+XERCESC_BASENAME=xerces-c-${XERCESC_VERSION}
+
+XERCESC_TEMP_FOLDER=${XERCESC_BASENAME}
+XERCESC_REPO=https://ftp.cixug.es/apache//xerces/c/3/sources/xerces-c-${XERCESC_VERSION}.tar.gz
+
+XERCESC_SRC_DIR=${XERCESC_BASENAME}-source
+XERCESC_INSTALL_DIR=${XERCESC_BASENAME}-install
+
+if [[ -d ${XERCESC_INSTALL_DIR} ]] ; then
+  log "Xerces-c already installed."
+else
+  log "Retrieving xerces-c."
+  wget ${XERCESC_REPO}
+
+  log "Extracting xerces-c."
+  tar -xzf ${XERCESC_BASENAME}.tar.gz
+  mv ${XERCESC_BASENAME} ${XERCESC_SRC_DIR}
+  mkdir -p ${XERCESC_INSTALL_DIR}
+  mkdir -p ${XERCESC_SRC_DIR}/build
+
+  pushd ${XERCESC_SRC_DIR}/build >/dev/null
+
+  cmake -G "Ninja" \
+      -DCMAKE_CXX_FLAGS="-std=c++14 -fPIC -w" \
+      -DCMAKE_INSTALL_PREFIX="../../${XERCESC_INSTALL_DIR}" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DBUILD_SHARED_LIBS=OFF \
+      -Dtranscoder=gnuiconv \
+      -Dnetwork=OFF \
+      ..
+  ninja
+  ninja install
+
+  popd >/dev/null
+
+  rm -Rf ${XERCESC_BASENAME}.tar.gz
+  rm -Rf ${XERCESC_SRC_DIR}
+fi
 
 # ==============================================================================
 # -- Generate Version.h --------------------------------------------------------
@@ -371,15 +486,16 @@ cat >${LIBSTDCPP_TOOLCHAIN_FILE}.gen <<EOL
 set(CMAKE_C_COMPILER ${CC})
 set(CMAKE_CXX_COMPILER ${CXX})
 
+# disable -Werror since the boost 1.72 doesn't compile with ad_rss without warnings (i.e. the geometry headers)
 set(CMAKE_CXX_FLAGS "\${CMAKE_CXX_FLAGS} -std=c++14 -pthread -fPIC" CACHE STRING "" FORCE)
-set(CMAKE_CXX_FLAGS "\${CMAKE_CXX_FLAGS} -Werror -Wall -Wextra -Wpedantic" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS "\${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS "\${CMAKE_CXX_FLAGS} -Wdeprecated -Wshadow -Wuninitialized -Wunreachable-code" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS "\${CMAKE_CXX_FLAGS} -Wpessimizing-move -Wold-style-cast -Wnull-dereference" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS "\${CMAKE_CXX_FLAGS} -Wduplicate-enum -Wnon-virtual-dtor -Wheader-hygiene" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS "\${CMAKE_CXX_FLAGS} -Wconversion -Wfloat-overflow-conversion" CACHE STRING "" FORCE)
 
 # @todo These flags need to be compatible with setup.py compilation.
-set(CMAKE_CXX_FLAGS_RELEASE_CLIENT "\${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG -g -fwrapv -O2 -Wall -Wstrict-prototypes -fno-strict-aliasing -Wdate-time -D_FORTIFY_SOURCE=2 -g -fstack-protector-strong -Wformat -Werror=format-security -fPIC -std=c++14 -Wno-missing-braces -DBOOST_ERROR_CODE_HEADER_ONLY -DLIBCARLA_WITH_PYTHON_SUPPORT" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS_RELEASE_CLIENT "\${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG -g -fwrapv -O2 -Wall -Wstrict-prototypes -fno-strict-aliasing -Wdate-time -D_FORTIFY_SOURCE=2 -g -fstack-protector-strong -Wformat -Werror=format-security -fPIC -std=c++14 -Wno-missing-braces -DBOOST_ERROR_CODE_HEADER_ONLY" CACHE STRING "" FORCE)
 EOL
 
 # -- LIBCPP_TOOLCHAIN_FILE -----------------------------------------------------
@@ -437,6 +553,8 @@ elseif (CMAKE_BUILD_TYPE STREQUAL "Client")
   set(BOOST_LIB_PATH "${BOOST_LIBPATH}")
   set(RECAST_INCLUDE_PATH "${RECAST_INCLUDE}")
   set(RECAST_LIB_PATH "${RECAST_LIBPATH}")
+  set(LIBPNG_INCLUDE_PATH "${LIBPNG_INCLUDE}")
+  set(LIBPNG_LIB_PATH "${LIBPNG_LIBPATH}")
 endif ()
 
 EOL

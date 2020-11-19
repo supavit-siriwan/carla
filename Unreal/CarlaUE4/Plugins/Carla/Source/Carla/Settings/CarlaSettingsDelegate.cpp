@@ -14,6 +14,8 @@
 #include "InstancedFoliageActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Landscape.h"
+#include "Scalability.h"
+
 
 static constexpr float CARLA_SETTINGS_MAX_SCALE_SIZE = 50.0f;
 
@@ -46,7 +48,8 @@ void UCarlaSettingsDelegate::OnActorSpawned(AActor *InActor)
       !InActor->ActorHasTag(UCarlaSettings::CARLA_ROAD_TAG) &&
       !InActor->ActorHasTag(UCarlaSettings::CARLA_SKY_TAG))
   {
-    TArray<UActorComponent *> components = InActor->GetComponentsByClass(UPrimitiveComponent::StaticClass());
+    TArray<UPrimitiveComponent *> components;
+    InActor->GetComponents(components);
     switch (CarlaSettings->GetQualityLevel())
     {
       case EQualityLevel::Low: {
@@ -71,10 +74,14 @@ void UCarlaSettingsDelegate::ApplyQualityLevelPostRestart()
   UWorld *InWorld = CarlaSettings->GetWorld();
 
   const EQualityLevel QualityLevel = CarlaSettings->GetQualityLevel();
+
   if (AppliedLowPostResetQualityLevel == QualityLevel)
   {
     return;
   }
+
+  // enable temporal changes of quality (prevent saving last quality settings to file)
+  Scalability::ToggleTemporaryQualityLevels(true);
 
   switch (QualityLevel)
   {
@@ -159,13 +166,17 @@ void UCarlaSettingsDelegate::CheckCarlaSettings(UWorld *world)
 
 void UCarlaSettingsDelegate::LaunchLowQualityCommands(UWorld *world) const
 {
+  if (!world)
+  {
+    return;
+  }
+
   // launch commands to lower quality settings
   GEngine->Exec(world, TEXT("r.DefaultFeature.MotionBlur 0"));
   GEngine->Exec(world, TEXT("r.DefaultFeature.Bloom 0"));
   GEngine->Exec(world, TEXT("r.DefaultFeature.AmbientOcclusion 0"));
   GEngine->Exec(world, TEXT("r.AmbientOcclusionLevels 0"));
   GEngine->Exec(world, TEXT("r.DefaultFeature.AmbientOcclusionStaticFraction 0"));
-  GEngine->Exec(world, TEXT("r.DefaultFeature.AutoExposure 0"));
   GEngine->Exec(world, TEXT("r.RHICmdBypass 0"));
   GEngine->Exec(world, TEXT("r.DefaultFeature.AntiAliasing 2"));
   GEngine->Exec(world, TEXT("r.Streaming.PoolSize 2000"));
@@ -207,6 +218,8 @@ void UCarlaSettingsDelegate::LaunchLowQualityCommands(UWorld *world) const
   GEngine->Exec(world, TEXT("r.OcclusionQueryLocation 1"));
   // GEngine->Exec(world,TEXT("r.BasePassOutputsVelocity 0")); //--> readonly
   // GEngine->Exec(world,TEXT("r.DetailMode 0")); //-->will change to lods 0
+  GEngine->Exec(world, TEXT("r.DefaultFeature.AutoExposure 1"));
+
 }
 
 void UCarlaSettingsDelegate::SetAllRoads(
@@ -233,7 +246,8 @@ void UCarlaSettingsDelegate::SetAllRoads(
       {
         continue;
       }
-      TArray<UActorComponent *> components = actor->GetComponentsByClass(UStaticMeshComponent::StaticClass());
+      TArray<UStaticMeshComponent *> components;
+      actor->GetComponents(components);
       for (int32 j = 0; j < components.Num(); j++)
       {
         UStaticMeshComponent *staticmeshcomponent = Cast<UStaticMeshComponent>(components[j]);
@@ -280,7 +294,8 @@ void UCarlaSettingsDelegate::SetActorComponentsDrawDistance(
   {
     return;
   }
-  TArray<UActorComponent *> components = actor->GetComponentsByClass(UPrimitiveComponent::StaticClass());
+  TArray<UPrimitiveComponent *> components;
+  actor->GetComponents(components, false);
   float dist = max_draw_distance;
   const float maxscale = actor->GetActorScale().GetMax();
   if (maxscale > CARLA_SETTINGS_MAX_SCALE_SIZE)
@@ -357,6 +372,7 @@ void UCarlaSettingsDelegate::LaunchEpicQualityCommands(UWorld *world) const
   {
     return;
   }
+
   GEngine->Exec(world, TEXT("r.AmbientOcclusionLevels -1"));
   GEngine->Exec(world, TEXT("r.RHICmdBypass 1"));
   GEngine->Exec(world, TEXT("r.DefaultFeature.AntiAliasing 2"));

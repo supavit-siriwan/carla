@@ -11,6 +11,8 @@
 
 #include <boost/asio/read.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/asio/bind_executor.hpp>
+#include <boost/asio/post.hpp>
 
 #include <atomic>
 
@@ -37,9 +39,15 @@ namespace tcp {
       callback_function_type on_closed) {
     DEBUG_ASSERT(on_opened && on_closed);
     _on_closed = std::move(on_closed);
+
+    // This forces not using Nagle's algorithm.
+    // Improves the sync mode velocity on Linux by a factor of ~3.
+    const boost::asio::ip::tcp::no_delay option(true);
+    _socket.set_option(option);
+
     StartTimer();
     auto self = shared_from_this(); // To keep myself alive.
-    _strand.post([=]() {
+    boost::asio::post(_strand, [=]() {
 
       auto handle_query = [this, self, callback=std::move(on_opened)](
           const boost::system::error_code &ec,
@@ -47,7 +55,7 @@ namespace tcp {
         if (!ec) {
           DEBUG_ASSERT_EQ(bytes_received, sizeof(_stream_id));
           log_debug("session", _session_id, "for stream", _stream_id, " started");
-          _strand.context().post([=]() { callback(self); });
+          boost::asio::post(_strand.context(), [=]() { callback(self); });
         } else {
           log_error("session", _session_id, ": error retrieving stream id :", ec.message());
           CloseNow();
@@ -59,7 +67,7 @@ namespace tcp {
       boost::asio::async_read(
           _socket,
           boost::asio::buffer(&_stream_id, sizeof(_stream_id)),
-          _strand.wrap(handle_query));
+          boost::asio::bind_executor(_strand, handle_query));
     });
   }
 
@@ -67,7 +75,7 @@ namespace tcp {
     DEBUG_ASSERT(message != nullptr);
     DEBUG_ASSERT(!message->empty());
     auto self = shared_from_this();
-    _strand.post([=]() {
+    boost::asio::post(_strand, [=]() {
       if (!_socket.is_open()) {
         return;
       }
@@ -94,12 +102,12 @@ namespace tcp {
       boost::asio::async_write(
           _socket,
           message->GetBufferSequence(),
-          _strand.wrap(handle_sent));
+          boost::asio::bind_executor(_strand, handle_sent));
     });
   }
 
   void ServerSession::Close() {
-    _strand.post([self=shared_from_this()]() { self->CloseNow(); });
+    boost::asio::post(_strand, [self=shared_from_this()]() { self->CloseNow(); });
   }
 
   void ServerSession::StartTimer() {
@@ -123,7 +131,7 @@ namespace tcp {
     if (_socket.is_open()) {
       _socket.close();
     }
-    _strand.context().post([self=shared_from_this()]() {
+    boost::asio::post(_strand.context(), [self=shared_from_this()]() {
       DEBUG_ASSERT(self->_on_closed);
       self->_on_closed(self);
     });

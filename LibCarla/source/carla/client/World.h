@@ -9,6 +9,8 @@
 #include "carla/Memory.h"
 #include "carla/Time.h"
 #include "carla/client/DebugHelper.h"
+#include "carla/client/Landmark.h"
+#include "carla/client/LightManager.h"
 #include "carla/client/Timestamp.h"
 #include "carla/client/WorldSnapshot.h"
 #include "carla/client/detail/EpisodeProxy.h"
@@ -18,8 +20,9 @@
 #include "carla/rpc/EpisodeSettings.h"
 #include "carla/rpc/VehiclePhysicsControl.h"
 #include "carla/rpc/WeatherParameters.h"
+#include "carla/rpc/VehicleLightStateList.h"
 
-#include <optional>
+#include <boost/optional.hpp>
 
 namespace carla {
 namespace client {
@@ -29,11 +32,15 @@ namespace client {
   class ActorList;
   class BlueprintLibrary;
   class Map;
+  class TrafficLight;
+  class TrafficSign;
 
   class World {
   public:
 
     explicit World(detail::EpisodeProxy episode) : _episode(std::move(episode)) {}
+
+    ~World(){}
 
     World(const World &) = default;
     World(World &&) = default;
@@ -52,6 +59,10 @@ namespace client {
     /// Return the list of blueprints available in this world. This blueprints
     /// can be used to spawning actor into the world.
     SharedPtr<BlueprintLibrary> GetBlueprintLibrary() const;
+
+    /// Returns a list of pairs where the firts element is the vehicle ID
+    /// and the second one is the light state
+    rpc::VehicleLightStateList GetVehiclesLightStates() const;
 
     /// Get a random location from the pedestrians navigation mesh
     boost::optional<geom::Location> GetRandomLocationFromNavigation() const;
@@ -115,11 +126,34 @@ namespace client {
     /// synchronous mode).
     ///
     /// @return The id of the frame that this call started.
-    uint64_t Tick();
+    uint64_t Tick(time_duration timeout);
+
+    /// set the probability that an agent could cross the roads in its path following
+    /// percentage of 0.0f means no pedestrian can cross roads
+    /// percentage of 0.5f means 50% of all pedestrians can cross roads
+    /// percentage of 1.0f means all pedestrians can cross roads if needed
+    void SetPedestriansCrossFactor(float percentage);
+
+    SharedPtr<Actor> GetTrafficSign(const Landmark& landmark) const;
+
+    SharedPtr<Actor> GetTrafficLight(const Landmark& landmark) const;
+
+    void ResetAllTrafficLights();
+
+    SharedPtr<LightManager> GetLightManager() const;
 
     DebugHelper MakeDebugHelper() const {
       return DebugHelper{_episode};
     }
+
+    detail::EpisodeProxy GetEpisode() const {
+      return _episode;
+    };
+
+    void FreezeAllTrafficLights(bool frozen);
+
+    /// Returns all the BBs of all the elements of the level
+    std::vector<geom::BoundingBox> GetLevelBBs(uint8_t queried_tag) const;
 
   private:
 
